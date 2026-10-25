@@ -1,6 +1,6 @@
 module ts6-media-sidecar
 
-go 1.27.2
+go 1.27.3
 
 require (
 	github.com/pion/interceptor v0.1.45
