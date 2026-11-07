@@ -8,6 +8,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  issues: write
 
 jobs:
   sync:
@@ -17,6 +18,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Merge upstream into sync branch
+        id: merge
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
@@ -26,11 +28,40 @@ jobs:
             echo "Already up to date"; exit 0
           fi
           git checkout -B sync-upstream origin/main
-          git merge upstream/main -m "chore: sync upstream" || { git merge --abort; echo "Merge conflict - manual sync needed"; exit 1; }
+          if ! git merge upstream/main -m "chore: sync upstream"; then
+            git diff --name-only --diff-filter=U > conflicts.txt
+            git merge --abort
+            echo "conflict=true" >> "$GITHUB_OUTPUT"
+            echo "Merge conflict - manual sync needed"
+            exit 0
+          fi
           git push origin sync-upstream --force
+          echo "changed=true" >> "$GITHUB_OUTPUT"
       - name: Open PR
+        if: steps.merge.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          git ls-remote --exit-code origin sync-upstream >/dev/null 2>&1 || exit 0
           gh pr create --base main --head sync-upstream --title "chore: sync upstream" --body "Automatischer Sync von coom/ts6-manager" || true
+      - name: Report merge conflict
+        if: steps.merge.outputs.conflict == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="Upstream-Sync: Merge-Konflikt mit coom/ts6-manager"
+          existing=$(gh issue list --state open --search "\"$title\" in:title" --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            echo "Issue #$existing already open"; exit 0
+          fi
+          {
+            echo "Der automatische Sync von coom/ts6-manager (main) ist an einem Merge-Konflikt gescheitert und braucht manuelle Hilfe."
+            echo
+            echo "Konflikte in:"
+            sed 's/^/- `/; s/$/`/' conflicts.txt
+            echo
+            echo "Lauf: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          } > body.md
+          gh issue create --title "$title" --body-file body.md
+      - name: Fail run on conflict
+        if: steps.merge.outputs.conflict == 'true'
+        run: exit 1
