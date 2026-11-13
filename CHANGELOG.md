@@ -109,6 +109,22 @@ Full security review of the codebase. Twelve issues, three of them high severity
 
 ### Fixed
 
+- **TeamSpeak 6 flood protection locked the manager out** (HTTP 502, `client is
+  flooding`, `socket hang up`). TeamSpeak 6 bans a query client for 10 minutes
+  after more than 10 commands in 3 seconds, and a WebQuery request with a
+  virtual server id counts as two. Several quick page loads crossed that, and
+  the ban outlasted a restart of the manager. The WebQuery client now spaces
+  its requests (at most 8 commands per 3 seconds), shares identical read-only
+  requests that run at the same time (and reuses the answer for one second;
+  any command that changes something clears it), and after a `flooding` answer
+  sends nothing for 30 seconds, doubling up to 5 minutes, with an error that
+  points at the server's `query_ip_allowlist`. Tests in
+  `ts-client/webquery-client.test.ts`.
+- **Empty "Logs" page / HTTP 502 for error 2052.** TeamSpeak creates the log file
+  of a virtual server only with its first log line after a start, so `logview`
+  answers `file input/output error` (2052) until then. The logs route now shows
+  the instance log with a note on top instead. Tests in
+  `routes/logs.routes.test.ts`.
 - Self-service MFA enrolment always returned 401. `/mfa/setup` and `/mfa/enable`
   sit on the public `/api/auth` mount, so `authMiddleware` never ran and
   `req.user` was always undefined, leaving MFA effectively impossible to turn on

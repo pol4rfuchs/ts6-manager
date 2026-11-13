@@ -107,3 +107,100 @@ describe('WebQueryClient stale keep-alive retry', () => {
     client.destroy();
   });
 });
+
+describe('WebQueryClient flood protection', () => {
+  it('shares one request between identical concurrent read-only calls and reuses the answer for a moment', async () => {
+    const client = new WebQueryClient('10.0.0.1', 10080, 'key');
+    const get = vi.fn().mockResolvedValue(okResponse({ list: [1, 2] }));
+    pinTransport(client, { get });
+
+    const [a, b, c] = await Promise.all([
+      client.execute(1, 'channellist'),
+      client.execute(1, 'channellist'),
+      client.execute(1, 'channellist'),
+    ]);
+    expect(get).toHaveBeenCalledTimes(1);
+    expect(a).toEqual({ list: [1, 2] });
+    expect(b).toEqual(a);
+    expect(c).toEqual(a);
+    // a different command or different parameters is a different request
+    await client.execute(1, 'clientlist');
+    await client.execute(1, 'channellist', { x: 1 });
+    expect(get).toHaveBeenCalledTimes(3);
+    client.destroy();
+  });
+
+  it('does not cache commands that change something and drops the cache after them', async () => {
+    const client = new WebQueryClient('10.0.0.1', 10080, 'key');
+    const get = vi.fn().mockResolvedValue(okResponse());
+    pinTransport(client, { get });
+
+    await client.execute(1, 'channellist');
+    await client.execute(1, 'channelcreate', { channel_name: 'a' });
+    await client.execute(1, 'channelcreate', { channel_name: 'a' });
+    await client.execute(1, 'channellist');
+    expect(get).toHaveBeenCalledTimes(4);
+    client.destroy();
+  });
+
+  it('keeps the requests below the server flood limit', async () => {
+    vi.useFakeTimers();
+    try {
+      const client = new WebQueryClient('10.0.0.1', 10080, 'key');
+      const times: number[] = [];
+      const get = vi.fn().mockImplementation(async () => { times.push(Date.now()); return okResponse(); });
+      pinTransport(client, { get });
+
+      // 10 different requests for a virtual server (2 commands each for the server)
+      const all = Promise.all(Array.from({ length: 10 }, (_, i) => client.execute(1, 'channelinfo', { cid: i })));
+      await vi.advanceTimersByTimeAsync(20_000);
+      await all;
+      expect(get).toHaveBeenCalledTimes(10);
+      // never more than 8 commands (= 4 requests) within any 3 s window
+      for (let i = 0; i < times.length; i++) {
+        const inWindow = times.filter((t) => t >= times[i] && t < times[i] + 3000).length;
+        expect(inWindow * 2).toBeLessThanOrEqual(8);
+      }
+      client.destroy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('stops sending after "client is flooding" and says what to do', async () => {
+    const client = new WebQueryClient('10.0.0.1', 10080, 'key');
+    const get = vi.fn().mockResolvedValue({ data: { status: { code: 524, message: 'client is flooding' } } });
+    pinTransport(client, { get });
+
+    await expect(client.execute(1, 'serverinfo')).rejects.toThrow(/client is flooding/);
+    // while the backoff lasts nothing is sent to the server
+    for (let i = 0; i < 5; i++) {
+      await expect(client.execute(1, 'clientlist')).rejects.toThrow(/query_ip_allowlist/);
+    }
+    expect(get).toHaveBeenCalledTimes(1);
+    // our own notice must not extend the backoff
+    const until = (client as any).floodUntil;
+    await expect(client.execute(1, 'clientlist')).rejects.toThrow();
+    expect((client as any).floodUntil).toBe(until);
+    client.destroy();
+  });
+
+  it('asks again after the backoff and forgets it after a success', async () => {
+    vi.useFakeTimers();
+    try {
+      const client = new WebQueryClient('10.0.0.1', 10080, 'key');
+      const get = vi.fn()
+        .mockResolvedValueOnce({ data: { status: { code: 524, message: 'client is flooding' } } })
+        .mockResolvedValue(okResponse());
+      pinTransport(client, { get });
+
+      await expect(client.execute(1, 'serverinfo')).rejects.toThrow(/flooding/);
+      await vi.advanceTimersByTimeAsync(31_000);
+      await expect(client.execute(1, 'clientlist')).resolves.toEqual({ ok: 1 });
+      expect((client as any).floodBackoffMs).toBe(0);
+      client.destroy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
