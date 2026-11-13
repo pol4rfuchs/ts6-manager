@@ -33,6 +33,7 @@ Hardened, reliability-focused evolution of [clusterzx/ts6-manager](https://githu
 **Reliability**
 - Self-healing connection pool: server connections added or edited in the UI work immediately — no backend restart, ever
 - WebQuery client rebuilds its transport when its keep-alive socket dies silently (Docker NAT, server restarts), with a circuit breaker that stops feeding the TS flood counter
+- WebQuery client keeps below TeamSpeak 6's query flood limit (paced requests, shared identical reads, backoff after a `client is flooding` answer); the TeamSpeak side can additionally exempt the manager with `query_ip_allowlist`
 - Dashboard responses cached 5 s server-side: N open tabs cost the same as one
 - One undecryptable credential row no longer crashes startup
 
