@@ -9,6 +9,15 @@ export const musicBotRoutes: Router = Router();
 
 const MUSIC_DIR = process.env.MUSIC_DIR || '/data/music';
 
+// An id from the request body must be a whole number; anything else is a client
+// error (400). Without the check parseInt() gives NaN, Prisma rejects the query and
+// the client gets a 500.
+function bodyId(value: unknown, field: string): number {
+  const id = typeof value === 'number' ? value : parseInt(String(value ?? ''), 10);
+  if (!Number.isInteger(id)) throw new AppError(400, `${field} must be an integer`);
+  return id;
+}
+
 // All routes require admin role
 musicBotRoutes.use(requireRole('admin'));
 
@@ -183,6 +192,7 @@ musicBotRoutes.post('/:id/play', async (req: Request, res: Response, next) => {
     const id = parseInt(req.params.id as string);
     const { songId } = req.body;
     if (!songId) throw new AppError(400, 'songId is required');
+    const songIdNum = bodyId(songId, 'songId');
 
     const bot = manager.getBot(id);
     if (!bot) throw new AppError(404, 'Music bot not found');
@@ -190,7 +200,7 @@ musicBotRoutes.post('/:id/play', async (req: Request, res: Response, next) => {
       throw new AppError(400, 'Bot is not connected');
     }
 
-    const song = await prisma.song.findUnique({ where: { id: parseInt(songId) } });
+    const song = await prisma.song.findUnique({ where: { id: songIdNum } });
     if (!song) throw new AppError(404, 'Song not found');
 
     const queueItem = {
@@ -284,6 +294,7 @@ musicBotRoutes.post('/:id/play-radio', async (req: Request, res: Response, next)
     const id = parseInt(req.params.id as string);
     const { stationId } = req.body;
     if (!stationId) throw new AppError(400, 'stationId is required');
+    const stationIdNum = bodyId(stationId, 'stationId');
 
     const bot = manager.getBot(id);
     if (!bot) throw new AppError(404, 'Music bot not found');
@@ -291,7 +302,7 @@ musicBotRoutes.post('/:id/play-radio', async (req: Request, res: Response, next)
       throw new AppError(400, 'Bot is not connected');
     }
 
-    const station = await prisma.radioStation.findUnique({ where: { id: parseInt(stationId) } });
+    const station = await prisma.radioStation.findUnique({ where: { id: stationIdNum } });
     if (!station) throw new AppError(404, 'Radio station not found');
 
     const queueItem = {
@@ -441,8 +452,7 @@ musicBotRoutes.post('/:id/queue', async (req: Request, res: Response, next) => {
     const bot = manager.getBot(parseInt(req.params.id as string));
     if (!bot) throw new AppError(404, 'Music bot not found');
 
-    const { songId } = req.body;
-    const song = await prisma.song.findUnique({ where: { id: parseInt(songId) } });
+    const song = await prisma.song.findUnique({ where: { id: bodyId(req.body?.songId, 'songId') } });
     if (!song) throw new AppError(404, 'Song not found');
 
     bot.queue.add({
