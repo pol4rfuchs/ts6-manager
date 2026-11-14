@@ -312,11 +312,19 @@ export class FlowRunner {
       const myClid = whoami?.[0]?.client_id;
       const myCid = whoami?.[0]?.client_channel_id;
       if (myClid) {
-        await client.executePost(ctx.sid, 'clientmove', { clid: myClid, cid: target });
-        await client.executePost(ctx.sid, 'sendtextmessage', { targetmode: 2, msg });
-        // Move back to original channel
-        if (myCid && String(myCid) !== String(target)) {
-          await client.executePost(ctx.sid, 'clientmove', { clid: myClid, cid: myCid });
+        const alreadyThere = !!myCid && String(myCid) === String(target);
+        // TeamSpeak answers a clientmove into the current channel with error
+        // 770 "already member of channel"; that must not abort the action.
+        if (!alreadyThere) {
+          await client.executePost(ctx.sid, 'clientmove', { clid: myClid, cid: target });
+        }
+        try {
+          await client.executePost(ctx.sid, 'sendtextmessage', { targetmode: 2, msg });
+        } finally {
+          // Move back to the original channel, even if sending failed
+          if (!alreadyThere && myCid) {
+            await client.executePost(ctx.sid, 'clientmove', { clid: myClid, cid: myCid }).catch(() => undefined);
+          }
         }
         return;
       }
