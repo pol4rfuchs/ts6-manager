@@ -198,6 +198,13 @@ export class WebQueryClient {
 
       const data = response.data;
 
+      // TeamSpeak answers a list without entries (bans, complaints, offline
+      // messages, ...) with error 1281 "database empty result set" and HTTP 200.
+      // That is an empty list, not a failure.
+      if (data.status?.code === 1281 && WebQueryClient.READ_ONLY.test(command)) {
+        return [];
+      }
+
       if (data.status && data.status.code !== 0) {
         throw new TSApiError(data.status.code, data.status.message);
       }

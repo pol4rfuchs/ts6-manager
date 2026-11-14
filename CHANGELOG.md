@@ -114,6 +114,11 @@ Full security review of the codebase. Twelve issues, three of them high severity
 
 ### Fixed
 
+- **Empty lists answered with HTTP 502.** For a list without entries (bans, complaints,
+  offline messages) TeamSpeak answers error 1281 "database empty result set" with HTTP
+  200. The WebQuery client turned that into a `TSApiError` and the route into a 502.
+  A read-only list command now returns an empty list. Tests in
+  `ts-client/webquery-client.test.ts`.
 - **TeamSpeak 6 flood protection locked the manager out** (HTTP 502, `client is
   flooding`, `socket hang up`). TeamSpeak 6 bans a query client for 10 minutes
   after more than 10 commands in 3 seconds, and a WebQuery request with a
