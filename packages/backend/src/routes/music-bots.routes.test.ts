@@ -9,6 +9,7 @@ function makeApp(findSong = vi.fn().mockResolvedValue({ id: 5, title: 't', fileP
     status: 'connected',
     queue: { add: vi.fn(), length: 1, playAt: vi.fn() },
     play: vi.fn(),
+    seek: vi.fn(),
     currentConfig: {},
   };
   const app = express();
@@ -66,5 +67,26 @@ describe('music bot routes: ids in the request body', () => {
     expect((await post(app, '/api/music-bots/1/play', { songId: 'abc' })).status).toBe(400);
     expect((await post(app, '/api/music-bots/1/play-radio', { stationId: 'abc' })).status).toBe(400);
     expect(findSong).not.toHaveBeenCalled();
+  });
+});
+
+describe('music bot routes: seek', () => {
+  it('seeks to a number or numeric string of 0 or more', async () => {
+    const { app, bot } = makeApp();
+    expect((await post(app, '/api/music-bots/1/seek', { seconds: 45 })).status).toBe(200);
+    expect((await post(app, '/api/music-bots/1/seek', { seconds: '12.5' })).status).toBe(200);
+    expect((await post(app, '/api/music-bots/1/seek', { seconds: 0 })).status).toBe(200);
+    expect(bot.seek.mock.calls.map((c: any[]) => c[0])).toEqual([45, 12.5, 0]);
+  });
+
+  it('a wrong or missing field is a 400 with a readable message and does not seek', async () => {
+    const { app, bot } = makeApp();
+    for (const body of [{ position: 45 }, {}, { seconds: 'abc' }, { seconds: -1 }, { seconds: null }, { seconds: '' }, { seconds: [1] }]) {
+      const r = await post(app, '/api/music-bots/1/seek', body);
+      expect(r.status, JSON.stringify(body)).toBe(400);
+      expect(r.body.error).toMatch(/seconds must be a number/);
+    }
+    expect((await post(app, '/api/music-bots/1/seek')).status).toBe(400);
+    expect(bot.seek).not.toHaveBeenCalled();
   });
 });
