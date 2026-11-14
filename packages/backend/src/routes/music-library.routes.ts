@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { requireRole } from '../middleware/rbac.js';
 import { AppError } from '../middleware/error-handler.js';
 import { downloadYouTube, searchYouTube, getYouTubeUrlInfo } from '../voice/audio/youtube.js';
-import { searchTracks, getTrack, downloadTrack } from '../voice/audio/navidrome.js';
+import { searchTracks, getTrack, downloadTrack, validateSearchQuery } from '../voice/audio/navidrome.js';
 import { loadNavidromeConfig } from './navidrome.routes.js';
 import multer from 'multer';
 import path from 'path';
@@ -121,8 +121,12 @@ musicLibraryRoutes.delete('/songs/:id', async (req: Request, res: Response, next
 // POST /navidrome/search — Search the configured Navidrome server
 musicLibraryRoutes.post('/navidrome/search', async (req: Request, res: Response, next) => {
   try {
-    const query = String(req.body?.query ?? '').trim();
-    if (!query) throw new AppError(400, 'query is required');
+    let query: string;
+    try {
+      query = validateSearchQuery(req.body?.query);
+    } catch (e: any) {
+      throw new AppError(400, e.message);
+    }
     const cfg = await loadNavidromeConfig(req.app.locals.prisma);
     if (!cfg) throw new AppError(400, 'Navidrome is not configured (Settings > Navidrome)');
     try {

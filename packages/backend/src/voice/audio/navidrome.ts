@@ -66,10 +66,28 @@ export async function ping(cfg: NavidromeConfig): Promise<{ version: string; ser
   return { version: String(sr.version ?? ''), serverVersion: sr.serverVersion ? String(sr.serverVersion) : null };
 }
 
-export async function searchTracks(cfg: NavidromeConfig, query: string, count = 20): Promise<NavidromeTrack[]> {
+export const MAX_SEARCH_QUERY_LENGTH = 200;
+export const MAX_SEARCH_RESULTS = 50;
+
+/**
+ * Navidrome answers search3 with an empty query by returning the WHOLE library,
+ * not "no hits". Reject empty/blank and overlong input before any request is made.
+ */
+export function validateSearchQuery(raw: unknown): string {
+  if (typeof raw !== 'string') throw new Error('Search term must be text');
+  const query = raw.trim();
+  if (!query) throw new Error('Enter a search term');
+  if (query.length > MAX_SEARCH_QUERY_LENGTH) {
+    throw new Error(`Search term is too long (at most ${MAX_SEARCH_QUERY_LENGTH} characters)`);
+  }
+  return query;
+}
+
+export async function searchTracks(cfg: NavidromeConfig, rawQuery: string, count = 20): Promise<NavidromeTrack[]> {
+  const query = validateSearchQuery(rawQuery);
   const sr = await call(cfg, 'search3', {
     query,
-    songCount: String(Math.min(Math.max(count, 1), 50)),
+    songCount: String(Math.min(Math.max(count, 1), MAX_SEARCH_RESULTS)),
     artistCount: '0',
     albumCount: '0',
   });
