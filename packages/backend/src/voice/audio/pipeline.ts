@@ -46,6 +46,36 @@ try {
   NativeOpusEncoder = null;
 }
 
+/**
+ * ffmpeg arguments that decode a local file or a remote URL to raw PCM.
+ * A remote input (for example a track streamed from Navidrome) may only use
+ * HTTP(S) and reconnects after a dropped connection; seeking uses range
+ * requests, so the server has to support them.
+ */
+export function buildFileDecodeArgs(input: string, startSeconds: number = 0, opts: { remote?: boolean } = {}): string[] {
+  return [
+    "-nostdin",
+    "-threads", FFMPEG_THREADS,
+    ...(opts.remote
+      ? [
+          "-protocol_whitelist", "http,https,tcp,tls,crypto",
+          "-reconnect", "1",
+          "-reconnect_streamed", "1",
+          "-reconnect_delay_max", "5",
+        ]
+      : []),
+    // -ss before -i: ffmpeg seeks in the container without decoding what precedes
+    ...(startSeconds > 0 ? ["-ss", String(startSeconds)] : []),
+    "-i", input,
+    "-f", "s16le",
+    "-acodec", "pcm_s16le",
+    "-ar", String(SAMPLE_RATE),
+    "-ac", String(CHANNELS),
+    "-loglevel", "error",
+    "pipe:1",
+  ];
+}
+
 export class AudioPipeline {
   private encodeFn: (pcm: Buffer) => Buffer;
   private opusPeak = 0;
@@ -123,20 +153,8 @@ export class AudioPipeline {
    * Returns a readable stdout stream + kill function. Constant memory:
    * the file is decoded as it is consumed (pipe backpressure).
    */
-  toPcmFileStream(filePath: string, startSeconds: number = 0): { stdout: Readable; process: ChildProcess; kill: () => void } {
-    const args = [
-      "-nostdin",
-      "-threads", FFMPEG_THREADS,
-      // -ss before -i: ffmpeg seeks in the container without decoding what precedes
-      ...(startSeconds > 0 ? ["-ss", String(startSeconds)] : []),
-      "-i", filePath,
-      "-f", "s16le",
-      "-acodec", "pcm_s16le",
-      "-ar", String(SAMPLE_RATE),
-      "-ac", String(CHANNELS),
-      "-loglevel", "error",
-      "pipe:1",
-    ];
+  toPcmFileStream(input: string, startSeconds: number = 0, opts: { remote?: boolean } = {}): { stdout: Readable; process: ChildProcess; kill: () => void } {
+    const args = buildFileDecodeArgs(input, startSeconds, opts);
 
     const ffmpeg = spawn("ffmpeg", args, { shell: false });
     return {

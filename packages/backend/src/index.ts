@@ -15,6 +15,9 @@ import { loadSamlRuntime } from './auth/saml/saml-config.js';
 import { config } from './config.js';
 import { setYtCookieFile } from './voice/audio/youtube.js';
 import { PlaylistImporter } from './voice/playlist-import.js';
+import { setNavidromeUrlResolver } from './voice/stream-source.js';
+import { buildStreamUrl } from './voice/audio/navidrome.js';
+import { loadNavidromeConfig } from './routes/navidrome.routes.js';
 import jwt from 'jsonwebtoken';
 import fs from 'fs';
 import path from 'path';
@@ -127,6 +130,11 @@ async function main() {
 
   // Make services available via app.locals
   app.locals.prisma = prisma;
+  // Tracks of a Navidrome server are streamed on demand; the URL is built from the saved settings
+  setNavidromeUrlResolver(async (trackId) => {
+    const cfg = await loadNavidromeConfig(prisma);
+    return cfg ? buildStreamUrl(cfg, trackId) : null;
+  });
   app.locals.connectionPool = connectionPool;
   app.locals.wss = wss;
 

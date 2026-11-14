@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { requireRole } from '../middleware/rbac.js';
 import { AppError } from '../middleware/error-handler.js';
 import { downloadYouTube, searchYouTube, getYouTubeUrlInfo } from '../voice/audio/youtube.js';
-import { searchTracks, getTrack, downloadTrack, validateSearchQuery } from '../voice/audio/navidrome.js';
+import { searchTracks, getTrack, validateSearchQuery, navidromePath, isNavidromePath } from '../voice/audio/navidrome.js';
 import { loadNavidromeConfig } from './navidrome.routes.js';
 import multer from 'multer';
 import path from 'path';
@@ -108,7 +108,7 @@ musicLibraryRoutes.delete('/songs/:id', async (req: Request, res: Response, next
 
     // Remove file from disk
     try {
-      if (fs.existsSync(song.filePath)) {
+      if (!isNavidromePath(song.filePath) && fs.existsSync(song.filePath)) {
         fs.unlinkSync(song.filePath);
       }
     } catch { /* ignore file deletion failure */ }
@@ -137,7 +137,8 @@ musicLibraryRoutes.post('/navidrome/search', async (req: Request, res: Response,
   } catch (err) { next(err); }
 });
 
-// POST /navidrome/import — Copy a Navidrome track into the library
+// POST /navidrome/import — Add a Navidrome track to the library. Nothing is downloaded:
+// the song only points to the track and is streamed from Navidrome when it plays.
 musicLibraryRoutes.post('/navidrome/import', async (req: Request, res: Response, next) => {
   try {
     const prisma = req.app.locals.prisma;
@@ -149,26 +150,33 @@ musicLibraryRoutes.post('/navidrome/import', async (req: Request, res: Response,
 
     const sourceUrl = `navidrome:${id}`;
     const existing = await prisma.song.findFirst({ where: { sourceUrl, serverConfigId: configId } });
-    if (existing && fs.existsSync(existing.filePath)) return res.json(existing);
+    // A song that is already streamed is returned as it is
+    if (existing && isNavidromePath(existing.filePath)) return res.json(existing);
 
     let track;
-    let filePath: string;
     try {
       track = await getTrack(cfg, id);
-      filePath = await downloadTrack(cfg, track, MUSIC_DIR);
     } catch (e: any) {
       throw new AppError(502, `Navidrome: ${e.message}`);
     }
-    const fileSize = fs.statSync(filePath).size;
-    let duration: number | null = track.duration;
-    if (duration == null) {
-      try { duration = await getAudioDuration(filePath); } catch { /* ignore */ }
+    const data = {
+      title: track.title,
+      artist: track.artist,
+      duration: track.duration,
+      filePath: navidromePath(id),
+      source: 'navidrome',
+      sourceUrl,
+      fileSize: track.size,
+      serverConfigId: configId,
+    };
+    // A copy made by an older version is replaced by the stream; its file is removed
+    if (existing) {
+      const oldFile = existing.filePath;
+      const song = await prisma.song.update({ where: { id: existing.id }, data });
+      try { if (oldFile && fs.existsSync(oldFile)) fs.unlinkSync(oldFile); } catch { /* ignore */ }
+      return res.json(song);
     }
-    const data = { title: track.title, artist: track.artist, duration, filePath, source: 'navidrome', sourceUrl, fileSize, serverConfigId: configId };
-    const song = existing
-      ? await prisma.song.update({ where: { id: existing.id }, data })
-      : await prisma.song.create({ data });
-    res.status(existing ? 200 : 201).json(song);
+    res.status(201).json(await prisma.song.create({ data }));
   } catch (err) { next(err); }
 });
 

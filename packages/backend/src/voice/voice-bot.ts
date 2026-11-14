@@ -10,6 +10,7 @@ import { SidecarProcess, type SidecarConfig } from './streaming/sidecar-process.
 import { STREAM_PRESETS, DEFAULT_PRESET, type VideoViewerInfo, type VideoStreamStatus } from './streaming/types.js';
 import { getCookieArgs, runYtDlp, assertSafeUrl } from './audio/youtube.js';
 import { validateUrl } from '../utils/url-validator.js';
+import { resolvePlaybackInput, type PlaybackInput } from './stream-source.js';
 
 /** Resolve a YouTube/yt-dlp-compatible URL to a direct stream URL */
 async function resolveVideoUrl(url: string, maxHeight: number = 720): Promise<string> {
@@ -127,6 +128,7 @@ export class VoiceBot extends EventEmitter {
   private sidecarHttp: SidecarClient | null = null;
   private _videoStreaming: boolean = false;
   private _activeStreamId: string | null = null;
+  private currentPlayback: PlaybackInput | null = null;
   private _videoSource: string | null = null;
   private _videoPreset: string = DEFAULT_PRESET;
   private _videoFramerate: number = STREAM_PRESETS[DEFAULT_PRESET]?.framerate ?? 30;
@@ -376,8 +378,13 @@ export class VoiceBot extends EventEmitter {
       throw new Error('Bot is not connected');
     }
 
+    // Resolve first: a track streamed from Navidrome fails here (not configured)
+    // without disturbing what is playing now.
+    const playback = await resolvePlaybackInput(item.filePath);
+
     this.stopIcyPolling();
     this.stopPlayback();
+    this.currentPlayback = playback;
     this._nowPlaying = item;
     this._status = 'playing';
     this.emit('statusChange', this._status);
@@ -400,7 +407,9 @@ export class VoiceBot extends EventEmitter {
 
   /** Spawn the decode ffmpeg for a file at the given offset and wire its events. */
   private startFileStream(item: QueueItem, startSeconds: number): void {
-    const stream = this.pipeline.toPcmFileStream(item.filePath, startSeconds);
+    // The URL of a streamed track carries a token: it is never logged, `item.filePath` is
+    const playback = this.currentPlayback ?? { input: item.filePath, remote: false };
+    const stream = this.pipeline.toPcmFileStream(playback.input, startSeconds, { remote: playback.remote });
     const sEpoch = ++this.streamEpoch;
 
     this.streamKill = stream.kill;
@@ -851,6 +860,7 @@ export class VoiceBot extends EventEmitter {
   private stopPlayback(): void {
     this.clearTimer();
     this.streamEpoch++; // orphan any pending stdout/close handlers
+    this.currentPlayback = null;
 
     // Kill decode/streaming FFmpeg if active
     if (this.streamKill) {

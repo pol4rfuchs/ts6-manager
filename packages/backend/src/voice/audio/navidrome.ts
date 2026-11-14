@@ -1,13 +1,9 @@
 import { createHash, randomBytes } from 'crypto';
-import fs from 'fs';
-import path from 'path';
-import { Readable } from 'stream';
-import { pipeline } from 'stream/promises';
 
 /**
- * Minimal Subsonic/OpenSubsonic client, enough for Navidrome: ping, search and
- * download of the original file. Tracks are copied into the music directory so
- * the existing playback pipeline (ffmpeg on a local file) is reused unchanged.
+ * Minimal Subsonic/OpenSubsonic client, enough for Navidrome: ping, search, track
+ * details and the stream URL of the original file. Tracks are not copied: ffmpeg
+ * reads them from Navidrome while they play.
  */
 
 export interface NavidromeConfig {
@@ -15,6 +11,21 @@ export interface NavidromeConfig {
   username: string;
   password: string;
   requestTimeoutMs?: number;
+}
+
+/** Prefix of `Song.filePath` / `QueueItem.filePath` for a track that is streamed from Navidrome. */
+export const NAVIDROME_PATH_PREFIX = 'navidrome:';
+
+export function navidromePath(trackId: string): string {
+  return `${NAVIDROME_PATH_PREFIX}${trackId}`;
+}
+
+export function isNavidromePath(filePath: string): boolean {
+  return typeof filePath === 'string' && filePath.startsWith(NAVIDROME_PATH_PREFIX);
+}
+
+export function navidromeTrackId(filePath: string): string {
+  return filePath.slice(NAVIDROME_PATH_PREFIX.length);
 }
 
 export interface NavidromeTrack {
@@ -144,26 +155,11 @@ export async function getTrack(cfg: NavidromeConfig, id: string): Promise<Navidr
   };
 }
 
-/** Downloads the original file into outputDir; returns the path. */
-export async function downloadTrack(cfg: NavidromeConfig, track: NavidromeTrack, outputDir: string): Promise<string> {
-  const ext = (track.suffix || 'mp3').replace(/[^a-z0-9]/gi, '').slice(0, 5) || 'mp3';
-  const safeId = track.id.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64);
-  const dest = path.join(outputDir, `navidrome-${safeId}.${ext}`);
-  const res = await request(buildUrl(cfg, 'download', { id: track.id }), cfg.requestTimeoutMs ? cfg.requestTimeoutMs * 8 : 120000);
-  if (!res.ok || !res.body) throw new Error(`Navidrome download failed: HTTP ${res.status}`);
-  const ctype = res.headers.get('content-type') || '';
-  if (ctype.includes('json')) {
-    // Subsonic reports errors as JSON with HTTP 200
-    const body: any = await res.json().catch(() => null);
-    throw new Error(body?.['subsonic-response']?.error?.message || 'Navidrome download failed');
-  }
-  const tmp = `${dest}.part`;
-  try {
-    await pipeline(Readable.fromWeb(res.body as any), fs.createWriteStream(tmp));
-    fs.renameSync(tmp, dest);
-  } catch (err) {
-    try { fs.unlinkSync(tmp); } catch { /* ignore */ }
-    throw err;
-  }
-  return dest;
+/**
+ * URL that serves the original file of a track (supports HTTP range requests,
+ * so ffmpeg can seek). It carries the user name and the Subsonic token, never
+ * the password. Do not log it.
+ */
+export function buildStreamUrl(cfg: NavidromeConfig, trackId: string): string {
+  return buildUrl(cfg, 'download', { id: trackId });
 }
