@@ -1289,7 +1289,8 @@
       "add": "Hinzufügen",
       "imported": "Titel zur Bibliothek hinzugefügt",
       "importFailed": "Titel konnte nicht hinzugefügt werden",
-      "searchFailed": "Navidrome-Suche fehlgeschlagen"
+      "searchFailed": "Navidrome-Suche fehlgeschlagen",
+      "inLibrary": "In Bibliothek"
     }
   },
   "playlistImport": {

@@ -62,3 +62,49 @@ describe('navidrome search input', () => {
     expect(url.searchParams.get('albumCount')).toBe('0');
   });
 });
+
+import http from 'node:http';
+import { describeNetworkError, MSG_UNREACHABLE, MSG_TIMEOUT, getTrack } from './navidrome.js';
+
+describe('navidrome network errors', () => {
+  const fetchFailed = (code: string) => Object.assign(new TypeError('fetch failed'), { cause: { code } });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('maps refused, unknown host and other connection errors to "not reachable"', () => {
+    for (const code of ['ECONNREFUSED', 'ENOTFOUND', 'EHOSTUNREACH', 'ECONNRESET', 'EAI_AGAIN']) {
+      expect(describeNetworkError(fetchFailed(code))).toBe(MSG_UNREACHABLE);
+    }
+    expect(describeNetworkError(new TypeError('fetch failed'))).toBe(MSG_UNREACHABLE);
+  });
+  it('maps timeouts and aborts to "did not answer in time"', () => {
+    expect(describeNetworkError(Object.assign(new Error('x'), { name: 'TimeoutError' }))).toBe(MSG_TIMEOUT);
+    expect(describeNetworkError(Object.assign(new Error('x'), { name: 'AbortError' }))).toBe(MSG_TIMEOUT);
+    expect(describeNetworkError(fetchFailed('ETIMEDOUT'))).toBe(MSG_TIMEOUT);
+    expect(describeNetworkError(fetchFailed('UND_ERR_CONNECT_TIMEOUT'))).toBe(MSG_TIMEOUT);
+  });
+  it('does not leak host, url or credentials into the message', () => {
+    const msg = describeNetworkError(Object.assign(new TypeError('fetch failed'), { cause: { code: 'ECONNREFUSED', address: '10.1.2.3', port: 4533 } }));
+    expect(msg).not.toMatch(/10\.1\.2\.3|4533|secret/);
+  });
+  it('searchTracks reports the readable message when fetch fails', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw fetchFailed('ECONNREFUSED'); }));
+    await expect(searchTracks({ url: 'http://nd.example:4533', username: 'u', password: 'secret' }, 'tone')).rejects.toThrow(MSG_UNREACHABLE);
+  });
+  it('keeps the existing HTTP error message', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 404 })));
+    await expect(getTrack({ url: 'http://nd.example:4533', username: 'u', password: 'p' }, '1')).rejects.toThrow('Navidrome answered HTTP 404');
+  });
+  it('real network: closed port is "not reachable", silent server is a timeout', async () => {
+    await expect(getTrack({ url: 'http://127.0.0.1:1', username: 'u', password: 'p' }, '1')).rejects.toThrow(MSG_UNREACHABLE);
+    await expect(getTrack({ url: 'http://nonexistent.invalid', username: 'u', password: 'p' }, '1')).rejects.toThrow(MSG_UNREACHABLE);
+    const silent = http.createServer(() => { /* never answers */ });
+    await new Promise<void>((r) => silent.listen(0, '127.0.0.1', r));
+    const port = (silent.address() as any).port;
+    try {
+      await expect(getTrack({ url: `http://127.0.0.1:${port}`, username: 'u', password: 'p', requestTimeoutMs: 300 }, '1')).rejects.toThrow(MSG_TIMEOUT);
+    } finally {
+      silent.closeAllConnections();
+      silent.close();
+    }
+  });
+});
