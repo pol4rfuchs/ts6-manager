@@ -380,8 +380,13 @@ musicBotRoutes.post('/:id/seek', async (req: Request, res: Response, next) => {
     const manager: VoiceBotManager = req.app.locals.voiceBotManager;
     const bot = manager.getBot(parseInt(req.params.id as string));
     if (!bot) throw new AppError(404, 'Music bot not found');
-    const { seconds } = req.body;
-    bot.seek(parseFloat(seconds) || 0);
+    // A missing or wrong field must not silently jump to the start of the track
+    const raw = req.body?.seconds;
+    const seconds = typeof raw === 'string' && raw.trim() !== '' ? Number(raw) : raw;
+    if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds < 0) {
+      throw new AppError(400, 'seconds must be a number of 0 or more');
+    }
+    bot.seek(seconds);
     res.json({ success: true });
   } catch (err) { next(err); }
 });

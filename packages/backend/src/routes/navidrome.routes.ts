@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { requireRole } from '../middleware/rbac.js';
 import { AppError } from '../middleware/error-handler.js';
 import { encrypt, decrypt } from '../utils/crypto.js';
-import { normalizeBaseUrl, ping, type NavidromeConfig } from '../voice/audio/navidrome.js';
+import { normalizeBaseUrl, ping, navidromeErrorText, type NavidromeConfig } from '../voice/audio/navidrome.js';
 
 export const navidromeRoutes: Router = Router();
 
@@ -61,7 +61,7 @@ navidromeRoutes.post('/test', async (req: Request, res: Response, next) => {
       const info = await ping({ url: s.url, username: s.username, password: decrypt(s.password) });
       res.json({ ok: true, ...info });
     } catch (e: any) {
-      throw new AppError(502, `Navidrome: ${e.message}`);
+      throw new AppError(502, navidromeErrorText(e.message));
     }
   } catch (err) { next(err); }
 });

@@ -120,3 +120,21 @@ describe('navidrome non-Subsonic answers', () => {
     await expect(getTrack({ url: 'http://nd.example:4533', username: 'u', password: 'p' }, '1')).rejects.toThrow('Not a Subsonic response (check the URL)');
   });
 });
+
+import { navidromeErrorText } from './navidrome.js';
+
+describe('navidrome error text', () => {
+  it('prefixes a message that does not start with Navidrome', () => {
+    expect(navidromeErrorText('Wrong username or password')).toBe('Navidrome: Wrong username or password');
+    expect(navidromeErrorText('Song not found')).toBe('Navidrome: Song not found');
+    expect(navidromeErrorText('Not a Subsonic response (check the URL)')).toBe('Navidrome: Not a Subsonic response (check the URL)');
+  });
+  it('does not repeat the prefix on messages that already start with Navidrome', () => {
+    expect(navidromeErrorText('Navidrome is not reachable. Check the URL and port.')).toBe('Navidrome is not reachable. Check the URL and port.');
+    expect(navidromeErrorText('Navidrome did not answer in time.')).toBe('Navidrome did not answer in time.');
+    expect(navidromeErrorText('Navidrome answered HTTP 404')).toBe('Navidrome answered HTTP 404');
+  });
+  it('keeps the message text itself unchanged', () => {
+    expect(navidromeErrorText('Navidrome is not reachable. Check the URL and port.')).toContain('Check the URL and port.');
+  });
+});
