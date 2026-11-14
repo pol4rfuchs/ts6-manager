@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { navidromeApi } from '@/api/navidrome.api';
+import { navidromeIdsInLibrary } from '@ts6/common';
 import { musicRequestsApi } from '@/api/music-requests.api';
 import { musicBotsApi } from '@/api/music.api';
 import {
@@ -35,7 +36,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Music, Plus, Trash2, Play, Pause, SkipForward, SkipBack, Square,
   Volume2, VolumeX, Upload, Search, Download, ListMusic, Shuffle,
-  Repeat, Repeat1, Power, PowerOff, Pencil, X, Loader2,
+  Repeat, Repeat1, Power, PowerOff, Pencil, X, Loader2, Check,
   Youtube, FileAudio, Link, GripVertical, Music2, Radio, Clock,
   Video,
 } from 'lucide-react';
@@ -742,6 +743,7 @@ function LibraryTab() {
   const { data: ndSettings } = useQuery({ queryKey: ['navidrome-settings'], queryFn: navidromeApi.settings });
   const [ndQuery, setNdQuery] = useState('');
   const [ndResults, setNdResults] = useState<any[] | null>(null);
+  const ndInLibrary = navidromeIdsInLibrary(Array.isArray(songs) ? (songs as SongInfo[]) : []);
   const ytDownload = useYouTubeDownload();
 
   const ytInfo = useYouTubeInfo();
@@ -1099,12 +1101,18 @@ function LibraryTab() {
                         <p className="text-xs font-medium truncate">{r.title}</p>
                         <p className="text-[10px] text-muted-foreground">{[r.artist, r.album].filter(Boolean).join(' - ')}{r.duration ? ` - ${formatTime(r.duration)}` : ''}</p>
                       </div>
-                      <Button variant="outline" size="sm" className="h-7 text-xs shrink-0"
-                        onClick={() => handleNdImport(r.id)}
-                        disabled={ndImport.isPending}
-                      >
-                        <Download className="h-3 w-3 mr-1" /> {t('musicBots.navidrome.add')}
-                      </Button>
+                      {ndInLibrary.has(String(r.id)) ? (
+                        <Button variant="ghost" size="sm" className="h-7 text-xs shrink-0" disabled>
+                          <Check className="h-3 w-3 mr-1" /> {t('musicBots.navidrome.inLibrary')}
+                        </Button>
+                      ) : (
+                        <Button variant="outline" size="sm" className="h-7 text-xs shrink-0"
+                          onClick={() => handleNdImport(r.id)}
+                          disabled={ndImport.isPending}
+                        >
+                          <Download className="h-3 w-3 mr-1" /> {t('musicBots.navidrome.add')}
+                        </Button>
+                      )}
                     </div>
                   ))}
                 </div>

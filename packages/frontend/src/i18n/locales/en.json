@@ -1289,7 +1289,8 @@
       "add": "Add",
       "imported": "Track added to the library",
       "importFailed": "Could not add the track",
-      "searchFailed": "Navidrome search failed"
+      "searchFailed": "Navidrome search failed",
+      "inLibrary": "In library"
     }
   },
   "playlistImport": {

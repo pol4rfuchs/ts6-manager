@@ -51,10 +51,36 @@ function buildUrl(cfg: NavidromeConfig, endpoint: string, extra: Record<string, 
   return `${normalizeBaseUrl(cfg.url)}/rest/${endpoint}?${params.toString()}`;
 }
 
+export const MSG_UNREACHABLE = 'Navidrome is not reachable. Check the URL and port.';
+export const MSG_TIMEOUT = 'Navidrome did not answer in time.';
+
+const TIMEOUT_CODES = new Set(['ETIMEDOUT', 'UND_ERR_CONNECT_TIMEOUT', 'UND_ERR_HEADERS_TIMEOUT', 'UND_ERR_BODY_TIMEOUT']);
+
+/**
+ * Turns a network failure of fetch() ("fetch failed", ECONNREFUSED, ENOTFOUND,
+ * timeout, abort) into a readable message. The message never contains the host,
+ * the URL or any credential.
+ */
+export function describeNetworkError(err: unknown): string {
+  const e: any = err;
+  const code = String(e?.cause?.code ?? e?.code ?? '');
+  if (e?.name === 'TimeoutError' || e?.name === 'AbortError' || TIMEOUT_CODES.has(code)) return MSG_TIMEOUT;
+  return MSG_UNREACHABLE;
+}
+
+async function request(url: string, timeoutMs: number): Promise<Response> {
+  try {
+    return await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+  } catch (err) {
+    throw new Error(describeNetworkError(err), { cause: err });
+  }
+}
+
 async function call(cfg: NavidromeConfig, endpoint: string, extra: Record<string, string> = {}): Promise<any> {
-  const res = await fetch(buildUrl(cfg, endpoint, extra), { signal: AbortSignal.timeout(cfg.requestTimeoutMs ?? 15000) });
+  const res = await request(buildUrl(cfg, endpoint, extra), cfg.requestTimeoutMs ?? 15000);
   if (!res.ok) throw new Error(`Navidrome answered HTTP ${res.status}`);
-  const body: any = await res.json();
+  // A wrong path often answers 200 with an HTML page; that is not JSON
+  const body: any = await res.json().catch(() => null);
   const sr = body?.['subsonic-response'];
   if (!sr) throw new Error('Not a Subsonic response (check the URL)');
   if (sr.status !== 'ok') throw new Error(sr.error?.message || `Subsonic error ${sr.error?.code ?? ''}`.trim());
@@ -123,7 +149,7 @@ export async function downloadTrack(cfg: NavidromeConfig, track: NavidromeTrack,
   const ext = (track.suffix || 'mp3').replace(/[^a-z0-9]/gi, '').slice(0, 5) || 'mp3';
   const safeId = track.id.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64);
   const dest = path.join(outputDir, `navidrome-${safeId}.${ext}`);
-  const res = await fetch(buildUrl(cfg, 'download', { id: track.id }), { signal: AbortSignal.timeout(cfg.requestTimeoutMs ? cfg.requestTimeoutMs * 8 : 120000) });
+  const res = await request(buildUrl(cfg, 'download', { id: track.id }), cfg.requestTimeoutMs ? cfg.requestTimeoutMs * 8 : 120000);
   if (!res.ok || !res.body) throw new Error(`Navidrome download failed: HTTP ${res.status}`);
   const ctype = res.headers.get('content-type') || '';
   if (ctype.includes('json')) {
