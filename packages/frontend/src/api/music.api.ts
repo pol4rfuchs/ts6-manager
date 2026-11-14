@@ -67,6 +67,10 @@ export const musicLibraryApi = {
     api.delete(`/servers/${configId}/music-library/songs/${songId}`).then((r) => r.data),
   // yt-dlp calls routinely exceed the global 15s axios timeout: searches and
   // playlist listings take 10-30s, downloads (fetch + opus conversion) minutes.
+  navidromeSearch: (configId: number, query: string) =>
+    api.post(`/servers/${configId}/music-library/navidrome/search`, { query }, { timeout: 30000 }).then((r) => r.data),
+  navidromeImport: (configId: number, id: string) =>
+    api.post(`/servers/${configId}/music-library/navidrome/import`, { id }, { timeout: 300000 }).then((r) => r.data),
   youtubeSearch: (configId: number, query: string) =>
     api.post(`/servers/${configId}/music-library/youtube/search`, { query }, { timeout: 60000 }).then((r) => r.data),
   youtubeDownload: (configId: number, url: string) =>

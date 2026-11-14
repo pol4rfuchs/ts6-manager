@@ -322,6 +322,15 @@ model SpotifySettings {
   updatedAt      DateTime @updatedAt
 }
 
+model NavidromeSettings {
+  id        Int      @id @default(autoincrement())
+  enabled   Boolean  @default(false)
+  url       String?
+  username  String?
+  password  String?
+  updatedAt DateTime @updatedAt
+}
+
 model MusicCommandSettings {
   id               Int      @id @default(autoincrement())
   musicCommandSgid Int?     // server group allowed to run music commands (null = open to all)

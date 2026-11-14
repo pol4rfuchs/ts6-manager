@@ -91,7 +91,8 @@
       "discord": "Discord",
       "spotify": "Spotify",
       "musicCommands": "Music-Bot",
-      "saml": "SSO / SAML"
+      "saml": "SSO / SAML",
+      "navidrome": "Navidrome"
     },
     "account": {
       "changePassword": "Passwort ändern",
@@ -400,6 +401,23 @@
       "acsUrl": "ACS-URL (Assertion Consumer Service)",
       "saved": "SSO-Einstellungen gespeichert",
       "saveError": "Speichern der SSO-Einstellungen fehlgeschlagen"
+    },
+    "navidrome": {
+      "title": "Navidrome",
+      "description": "Einen Navidrome-Server (Subsonic) als Musikquelle nutzen. In der Musikbibliothek suchen und Titel hinzufügen; sie werden in den Musikordner des Managers kopiert und spielen dann wie jeder andere Titel. Adresse so angeben, dass der Manager sie erreicht (in Home Assistant der App-Hostname von Navidrome), dazu ein Navidrome-Benutzer.",
+      "enable": "Navidrome aktivieren",
+      "url": "Server-URL",
+      "username": "Benutzername",
+      "password": "Passwort",
+      "passwordPlaceholderSet": "(unverändert — neues Passwort zum Ändern eingeben)",
+      "save": "Speichern",
+      "saving": "Speichern...",
+      "test": "Verbindung testen",
+      "testing": "Teste...",
+      "testOk": "Verbunden (Navidrome {{version}})",
+      "testFailed": "Verbindung fehlgeschlagen",
+      "toastSaved": "Navidrome-Einstellungen gespeichert",
+      "toastSaveFailed": "Speichern fehlgeschlagen"
     }
   },
   "channels": {
@@ -1263,6 +1281,15 @@
       "moveUp": "Nach oben",
       "moveDown": "Nach unten",
       "removeTooltip": "Aus der Warteschlange entfernen"
+    },
+    "navidrome": {
+      "searchPlaceholder": "Navidrome durchsuchen...",
+      "search": "Navidrome",
+      "results": "Navidrome-Ergebnisse ({{n}})",
+      "add": "Hinzufügen",
+      "imported": "Titel zur Bibliothek hinzugefügt",
+      "importFailed": "Titel konnte nicht hinzugefügt werden",
+      "searchFailed": "Navidrome-Suche fehlgeschlagen"
     }
   },
   "playlistImport": {
