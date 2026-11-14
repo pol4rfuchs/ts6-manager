@@ -72,7 +72,7 @@ async function request(url: string, timeoutMs: number): Promise<Response> {
   try {
     return await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
   } catch (err) {
-    throw new Error(describeNetworkError(err));
+    throw new Error(describeNetworkError(err), { cause: err });
   }
 }
 
