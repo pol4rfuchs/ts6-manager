@@ -108,3 +108,15 @@ describe('navidrome network errors', () => {
     }
   });
 });
+
+describe('navidrome non-Subsonic answers', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  it('a 200 answer that is not JSON (for example an HTML page) says to check the URL', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('<!DOCTYPE html><html></html>', { status: 200, headers: { 'content-type': 'text/html' } })));
+    await expect(getTrack({ url: 'http://nd.example:4533', username: 'u', password: 'p' }, '1')).rejects.toThrow('Not a Subsonic response (check the URL)');
+  });
+  it('JSON without a subsonic-response is the same error', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{"hello":1}', { status: 200 })));
+    await expect(getTrack({ url: 'http://nd.example:4533', username: 'u', password: 'p' }, '1')).rejects.toThrow('Not a Subsonic response (check the URL)');
+  });
+});

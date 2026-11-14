@@ -79,7 +79,8 @@ async function request(url: string, timeoutMs: number): Promise<Response> {
 async function call(cfg: NavidromeConfig, endpoint: string, extra: Record<string, string> = {}): Promise<any> {
   const res = await request(buildUrl(cfg, endpoint, extra), cfg.requestTimeoutMs ?? 15000);
   if (!res.ok) throw new Error(`Navidrome answered HTTP ${res.status}`);
-  const body: any = await res.json();
+  // A wrong path often answers 200 with an HTML page; that is not JSON
+  const body: any = await res.json().catch(() => null);
   const sr = body?.['subsonic-response'];
   if (!sr) throw new Error('Not a Subsonic response (check the URL)');
   if (sr.status !== 'ok') throw new Error(sr.error?.message || `Subsonic error ${sr.error?.code ?? ''}`.trim());
