@@ -204,3 +204,34 @@ describe('WebQueryClient flood protection', () => {
     }
   });
 });
+
+describe('WebQueryClient empty result sets', () => {
+  it('turns TeamSpeak error 1281 of a list command into an empty list', async () => {
+    const client = new WebQueryClient('10.0.0.1', 10080, 'key');
+    const get = vi.fn().mockResolvedValue({ data: { status: { code: 1281, message: 'database empty result set' } } });
+    pinTransport(client, { get });
+
+    await expect(client.execute(1, 'banlist')).resolves.toEqual([]);
+    await expect(client.execute(1, 'complainlist')).resolves.toEqual([]);
+    await expect(client.execute(1, 'messagelist')).resolves.toEqual([]);
+    client.destroy();
+  });
+
+  it('keeps error 1281 for a command that is not a read-only list', async () => {
+    const client = new WebQueryClient('10.0.0.1', 10080, 'key');
+    const get = vi.fn().mockResolvedValue({ data: { status: { code: 1281, message: 'database empty result set' } } });
+    pinTransport(client, { get });
+
+    await expect(client.execute(1, 'banadd')).rejects.toThrow(/empty result set/);
+    client.destroy();
+  });
+
+  it('still reports other errors of a list command', async () => {
+    const client = new WebQueryClient('10.0.0.1', 10080, 'key');
+    const get = vi.fn().mockResolvedValue({ data: { status: { code: 2568, message: 'insufficient client permissions' } } });
+    pinTransport(client, { get });
+
+    await expect(client.execute(1, 'banlist')).rejects.toThrow(/insufficient/);
+    client.destroy();
+  });
+});
