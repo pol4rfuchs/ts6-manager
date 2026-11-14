@@ -1664,12 +1664,12 @@ function NavidromeTab() {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const { data: settings, isLoading } = useQuery({ queryKey: ['navidrome-settings'], queryFn: navidromeApi.settings });
-  const [form, setForm] = useState({ enabled: false, url: '', username: '', password: '' });
+  const [form, setForm] = useState({ enabled: false, url: '', username: '', password: '', musicFolder: '' });
 
   const [seededSettings, setSeededSettings] = useState<typeof settings>(undefined);
   if (settings && settings !== seededSettings) {
     setSeededSettings(settings);
-    setForm({ enabled: settings.enabled, url: settings.url || '', username: settings.username || '', password: '' });
+    setForm({ enabled: settings.enabled, url: settings.url || '', username: settings.username || '', password: '', musicFolder: settings.musicFolder || '' });
   }
 
   const save = useMutation({
@@ -1678,6 +1678,7 @@ function NavidromeTab() {
       url: form.url,
       username: form.username,
       password: form.password || undefined,
+      musicFolder: form.musicFolder,
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['navidrome-settings'] });
@@ -1688,7 +1689,12 @@ function NavidromeTab() {
 
   const test = useMutation({
     mutationFn: () => navidromeApi.test(),
-    onSuccess: (r) => toast.success(t('settings.navidrome.testOk', { version: r.serverVersion || r.version })),
+    onSuccess: (r) => {
+      toast.success(t('settings.navidrome.testOk', { version: r.serverVersion || r.version }));
+      // null = no music folder set: nothing to report
+      if (r.folderReadable === true) toast.success(t('settings.navidrome.folderReadableYes'));
+      if (r.folderReadable === false) toast.error(t('settings.navidrome.folderReadableNo'));
+    },
     onError: (err: any) => toast.error(err.response?.data?.error || t('settings.navidrome.testFailed')),
   });
 
@@ -1724,6 +1730,13 @@ function NavidromeTab() {
           <Input className="h-8 text-xs" type="password" autoComplete="new-password"
             placeholder={settings.hasPassword ? t('settings.navidrome.passwordPlaceholderSet') : ''}
             value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs">{t('settings.navidrome.musicFolder')}</Label>
+          <Input className="h-8 text-xs font-mono" placeholder="/media/music" autoComplete="off" value={form.musicFolder}
+            onChange={(e) => setForm((f) => ({ ...f, musicFolder: e.target.value }))} />
+          <p className="text-[11px] text-muted-foreground">{t('settings.navidrome.musicFolderHint')}</p>
         </div>
 
         <div className="flex gap-2">

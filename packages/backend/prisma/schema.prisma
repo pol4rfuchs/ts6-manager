@@ -197,6 +197,8 @@ model Song {
   filePath        String
   source          String    @default("local")
   sourceUrl       String?
+  /// Navidrome only: the path Navidrome reports for the track (used by the local folder mode)
+  navidromePath   String?
   fileSize        Int?
   serverConfigId  Int
   serverConfig    TsServerConfig @relation(fields: [serverConfigId], references: [id], onDelete: Cascade)
@@ -323,12 +325,14 @@ model SpotifySettings {
 }
 
 model NavidromeSettings {
-  id        Int      @id @default(autoincrement())
-  enabled   Boolean  @default(false)
-  url       String?
-  username  String?
-  password  String?
-  updatedAt DateTime @updatedAt
+  id          Int      @id @default(autoincrement())
+  enabled     Boolean  @default(false)
+  url         String?
+  username    String?
+  password    String?
+  /// Optional: where this manager sees the Navidrome music folder (read only). Empty = stream over HTTP.
+  musicFolder String?
+  updatedAt   DateTime @updatedAt
 }
 
 model MusicCommandSettings {

@@ -417,7 +417,11 @@
       "testOk": "Verbunden (Navidrome {{version}})",
       "testFailed": "Verbindung fehlgeschlagen",
       "toastSaved": "Navidrome-Einstellungen gespeichert",
-      "toastSaveFailed": "Speichern fehlgeschlagen"
+      "toastSaveFailed": "Speichern fehlgeschlagen",
+      "musicFolder": "Musikordner (optional)",
+      "musicFolderHint": "Wo dieser Manager den Navidrome-Musikordner sieht, nur lesend (in Home Assistant der Medienordner, zum Beispiel /media/music). Ist er gesetzt und liegt ein Titel dort, wird er aus dem Ordner gelesen: kein Netzabruf, keine Zugangsdaten in einer URL, und Navidrome darf aus sein. Sonst wird der Titel von Navidrome gestreamt. In Navidrome \"Report Real Path\" für den Player \"ts6-manager\" einschalten; ohne das meldet Navidrome erfundene Pfade und der Ordner wird nicht genutzt. Leer lassen = immer streamen.",
+      "folderReadableYes": "Musikordner lesbar: ja",
+      "folderReadableNo": "Musikordner lesbar: nein"
     }
   },
   "channels": {
