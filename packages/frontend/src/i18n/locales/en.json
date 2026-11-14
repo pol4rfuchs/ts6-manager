@@ -91,7 +91,8 @@
       "discord": "Discord",
       "spotify": "Spotify",
       "musicCommands": "Music Bot",
-      "saml": "SSO / SAML"
+      "saml": "SSO / SAML",
+      "navidrome": "Navidrome"
     },
     "account": {
       "changePassword": "Change Password",
@@ -400,6 +401,23 @@
       "acsUrl": "ACS URL (Assertion Consumer Service)",
       "saved": "SSO settings saved",
       "saveError": "Failed to save SSO settings"
+    },
+    "navidrome": {
+      "title": "Navidrome",
+      "description": "Use a Navidrome (Subsonic) server as a music source. Search it in the music library and add tracks; they are copied into the manager's music folder and then play like any other song. Use the address the manager can reach (inside Home Assistant the app host name of Navidrome) and a Navidrome user.",
+      "enable": "Enable Navidrome",
+      "url": "Server URL",
+      "username": "User name",
+      "password": "Password",
+      "passwordPlaceholderSet": "(unchanged — enter new password to update)",
+      "save": "Save",
+      "saving": "Saving...",
+      "test": "Test connection",
+      "testing": "Testing...",
+      "testOk": "Connected (Navidrome {{version}})",
+      "testFailed": "Connection failed",
+      "toastSaved": "Navidrome settings saved",
+      "toastSaveFailed": "Failed to save"
     }
   },
   "channels": {
@@ -1263,6 +1281,15 @@
       "moveUp": "Move up",
       "moveDown": "Move down",
       "removeTooltip": "Remove from queue"
+    },
+    "navidrome": {
+      "searchPlaceholder": "Search Navidrome...",
+      "search": "Navidrome",
+      "results": "Navidrome results ({{n}})",
+      "add": "Add",
+      "imported": "Track added to the library",
+      "importFailed": "Could not add the track",
+      "searchFailed": "Navidrome search failed"
     }
   },
   "playlistImport": {

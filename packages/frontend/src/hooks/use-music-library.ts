@@ -27,6 +27,22 @@ export function useDeleteSong() {
   });
 }
 
+export function useNavidromeSearch() {
+  return useMutation({
+    mutationFn: ({ configId, query }: { configId: number; query: string }) =>
+      musicLibraryApi.navidromeSearch(configId, query),
+  });
+}
+
+export function useNavidromeImport() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ configId, id }: { configId: number; id: string }) =>
+      musicLibraryApi.navidromeImport(configId, id),
+    onSuccess: (_, { configId }) => qc.invalidateQueries({ queryKey: ['songs', configId] }),
+  });
+}
+
 export function useYouTubeSearch() {
   return useMutation({
     mutationFn: ({ configId, query }: { configId: number; query: string }) =>

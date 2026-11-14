@@ -36,6 +36,7 @@ import { samlAuthRoutes } from './routes/saml-auth.routes.js';
 import { settingsRoutes } from './routes/settings.routes.js';
 import { discordRoutes } from './routes/discord.routes.js';
 import { spotifyRoutes } from './routes/spotify.routes.js';
+import { navidromeRoutes } from './routes/navidrome.routes.js';
 import { musicCommandSettingsRoutes } from './routes/music-command-settings.routes.js';
 import { journalRoutes } from './routes/journal.routes.js';
 import { samlRoutes } from './routes/saml.routes.js';
@@ -142,6 +143,7 @@ export function createApp(): Express {
   app.use('/api/settings', settingsRoutes);
   app.use('/api/discord', discordRoutes);
   app.use('/api/spotify', spotifyRoutes);
+  app.use('/api/navidrome', navidromeRoutes);
   app.use('/api/music-command-settings', musicCommandSettingsRoutes);
   app.use('/api/journal', journalRoutes);
   app.use('/api/saml', requireRole('admin'), samlRoutes);

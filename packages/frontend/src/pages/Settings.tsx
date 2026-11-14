@@ -6,6 +6,7 @@ import { serversApi } from '@/api/servers.api';
 import { settingsApi, proxyApi, limitsApi } from '@/api/settings.api';
 import { discordApi, type DiscordSettings } from '@/api/discord.api';
 import { spotifyApi } from '@/api/spotify.api';
+import { navidromeApi } from '@/api/navidrome.api';
 import { musicCommandSettingsApi } from '@/api/music-command-settings.api';
 import { samlApi, type SamlSettings } from '@/api/saml.api';
 import { useServerGroups } from '@/hooks/use-groups';
@@ -47,6 +48,7 @@ export default function Settings() {
           {isAdmin && <TabsTrigger value="youtube"><Youtube className="h-3.5 w-3.5 mr-1" /> {t('settings.tabs.youtube')}</TabsTrigger>}
           {isAdmin && <TabsTrigger value="discord"><MessagesSquare className="h-3.5 w-3.5 mr-1" /> {t('settings.tabs.discord')}</TabsTrigger>}
           {isAdmin && <TabsTrigger value="saml"><ShieldCheck className="h-3.5 w-3.5 mr-1" /> {t('settings.tabs.saml')}</TabsTrigger>}
+          {isAdmin && <TabsTrigger value="navidrome"><Music className="h-3.5 w-3.5 mr-1" /> {t('settings.tabs.navidrome')}</TabsTrigger>}
           {isAdmin && <TabsTrigger value="spotify"><Music className="h-3.5 w-3.5 mr-1" /> {t('settings.tabs.spotify')}</TabsTrigger>}
           {isAdmin && <TabsTrigger value="musicCommands"><Bot className="h-3.5 w-3.5 mr-1" /> {t('settings.tabs.musicCommands')}</TabsTrigger>}
         </TabsList>
@@ -88,6 +90,12 @@ export default function Settings() {
         {isAdmin && (
           <TabsContent value="spotify" className="mt-4">
             <SpotifyTab />
+          </TabsContent>
+        )}
+
+        {isAdmin && (
+          <TabsContent value="navidrome" className="mt-4">
+            <NavidromeTab />
           </TabsContent>
         )}
 
@@ -1645,6 +1653,87 @@ function ReverseProxyCard() {
         <Button size="sm" onClick={() => save.mutate()} disabled={save.isPending}>
           {save.isPending ? t('settings.users.reverseProxy.saving') : t('settings.users.reverseProxy.save')}
         </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Navidrome Tab ───────────────────────────────────────────
+
+function NavidromeTab() {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const { data: settings, isLoading } = useQuery({ queryKey: ['navidrome-settings'], queryFn: navidromeApi.settings });
+  const [form, setForm] = useState({ enabled: false, url: '', username: '', password: '' });
+
+  const [seededSettings, setSeededSettings] = useState<typeof settings>(undefined);
+  if (settings && settings !== seededSettings) {
+    setSeededSettings(settings);
+    setForm({ enabled: settings.enabled, url: settings.url || '', username: settings.username || '', password: '' });
+  }
+
+  const save = useMutation({
+    mutationFn: () => navidromeApi.updateSettings({
+      enabled: form.enabled,
+      url: form.url,
+      username: form.username,
+      password: form.password || undefined,
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['navidrome-settings'] });
+      toast.success(t('settings.navidrome.toastSaved'));
+    },
+    onError: (err: any) => toast.error(err.response?.data?.error || t('settings.navidrome.toastSaveFailed')),
+  });
+
+  const test = useMutation({
+    mutationFn: () => navidromeApi.test(),
+    onSuccess: (r) => toast.success(t('settings.navidrome.testOk', { version: r.serverVersion || r.version })),
+    onError: (err: any) => toast.error(err.response?.data?.error || t('settings.navidrome.testFailed')),
+  });
+
+  if (isLoading || !settings) return <PageLoader />;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm">{t('settings.navidrome.title')}</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4 max-w-xl">
+        <p className="text-[11px] text-muted-foreground">{t('settings.navidrome.description')}</p>
+
+        <div className="flex items-center gap-2">
+          <Switch checked={form.enabled} onCheckedChange={(v) => setForm((f) => ({ ...f, enabled: v }))} />
+          <Label className="text-xs">{t('settings.navidrome.enable')}</Label>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs">{t('settings.navidrome.url')}</Label>
+          <Input className="h-8 text-xs" placeholder="http://navidrome:4533" value={form.url}
+            onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))} />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs">{t('settings.navidrome.username')}</Label>
+          <Input className="h-8 text-xs" autoComplete="off" value={form.username}
+            onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))} />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs">{t('settings.navidrome.password')}</Label>
+          <Input className="h-8 text-xs" type="password" autoComplete="new-password"
+            placeholder={settings.hasPassword ? t('settings.navidrome.passwordPlaceholderSet') : ''}
+            value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} />
+        </div>
+
+        <div className="flex gap-2">
+          <Button size="sm" onClick={() => save.mutate()} disabled={save.isPending}>
+            {save.isPending ? t('settings.navidrome.saving') : t('settings.navidrome.save')}
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => test.mutate()} disabled={test.isPending || !settings.hasPassword}>
+            {test.isPending ? t('settings.navidrome.testing') : t('settings.navidrome.test')}
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );

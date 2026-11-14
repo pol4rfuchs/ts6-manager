@@ -2,6 +2,8 @@ import { Router, Request, Response } from 'express';
 import { requireRole } from '../middleware/rbac.js';
 import { AppError } from '../middleware/error-handler.js';
 import { downloadYouTube, searchYouTube, getYouTubeUrlInfo } from '../voice/audio/youtube.js';
+import { searchTracks, getTrack, downloadTrack } from '../voice/audio/navidrome.js';
+import { loadNavidromeConfig } from './navidrome.routes.js';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -113,6 +115,56 @@ musicLibraryRoutes.delete('/songs/:id', async (req: Request, res: Response, next
 
     await prisma.song.delete({ where: { id } });
     res.json({ success: true });
+  } catch (err) { next(err); }
+});
+
+// POST /navidrome/search — Search the configured Navidrome server
+musicLibraryRoutes.post('/navidrome/search', async (req: Request, res: Response, next) => {
+  try {
+    const query = String(req.body?.query ?? '').trim();
+    if (!query) throw new AppError(400, 'query is required');
+    const cfg = await loadNavidromeConfig(req.app.locals.prisma);
+    if (!cfg) throw new AppError(400, 'Navidrome is not configured (Settings > Navidrome)');
+    try {
+      res.json(await searchTracks(cfg, query, 20));
+    } catch (e: any) {
+      throw new AppError(502, `Navidrome: ${e.message}`);
+    }
+  } catch (err) { next(err); }
+});
+
+// POST /navidrome/import — Copy a Navidrome track into the library
+musicLibraryRoutes.post('/navidrome/import', async (req: Request, res: Response, next) => {
+  try {
+    const prisma = req.app.locals.prisma;
+    const configId = parseInt(req.params.configId as string);
+    const id = String(req.body?.id ?? '').trim();
+    if (!id) throw new AppError(400, 'id is required');
+    const cfg = await loadNavidromeConfig(prisma);
+    if (!cfg) throw new AppError(400, 'Navidrome is not configured (Settings > Navidrome)');
+
+    const sourceUrl = `navidrome:${id}`;
+    const existing = await prisma.song.findFirst({ where: { sourceUrl, serverConfigId: configId } });
+    if (existing && fs.existsSync(existing.filePath)) return res.json(existing);
+
+    let track;
+    let filePath: string;
+    try {
+      track = await getTrack(cfg, id);
+      filePath = await downloadTrack(cfg, track, MUSIC_DIR);
+    } catch (e: any) {
+      throw new AppError(502, `Navidrome: ${e.message}`);
+    }
+    const fileSize = fs.statSync(filePath).size;
+    let duration: number | null = track.duration;
+    if (duration == null) {
+      try { duration = await getAudioDuration(filePath); } catch { /* ignore */ }
+    }
+    const data = { title: track.title, artist: track.artist, duration, filePath, source: 'navidrome', sourceUrl, fileSize, serverConfigId: configId };
+    const song = existing
+      ? await prisma.song.update({ where: { id: existing.id }, data })
+      : await prisma.song.create({ data });
+    res.status(existing ? 200 : 201).json(song);
   } catch (err) { next(err); }
 });
 

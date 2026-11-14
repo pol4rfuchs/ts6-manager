@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { navidromeApi } from '@/api/navidrome.api';
 import { musicRequestsApi } from '@/api/music-requests.api';
 import { musicBotsApi } from '@/api/music.api';
 import {
@@ -11,7 +12,7 @@ import {
   useSetShuffle, useSetRepeat,
   usePlayFromQueue, useMoveQueueItem,
 } from '@/hooks/use-music-bots';
-import { useSongs, useUploadSong, useDeleteSong, useYouTubeSearch, useYouTubeDownload, useYouTubeInfo, useYouTubeDownloadBatch, useImportPlaylist, useImportPlaylistStatus } from '@/hooks/use-music-library';
+import { useSongs, useUploadSong, useDeleteSong, useYouTubeSearch, useNavidromeSearch, useNavidromeImport, useYouTubeDownload, useYouTubeInfo, useYouTubeDownloadBatch, useImportPlaylist, useImportPlaylistStatus } from '@/hooks/use-music-library';
 import { useRadioStations, useRadioPresets, useCreateRadioStation, useDeleteRadioStation, usePlayRadio } from '@/hooks/use-radio-stations';
 import { usePlaylists, usePlaylist, useCreatePlaylist, useDeletePlaylist, useAddSongToPlaylist, useRemoveSongFromPlaylist } from '@/hooks/use-playlists';
 import { useServers } from '@/hooks/use-servers';
@@ -736,6 +737,11 @@ function LibraryTab() {
   const uploadSong = useUploadSong();
   const deleteSong = useDeleteSong();
   const ytSearch = useYouTubeSearch();
+  const ndSearch = useNavidromeSearch();
+  const ndImport = useNavidromeImport();
+  const { data: ndSettings } = useQuery({ queryKey: ['navidrome-settings'], queryFn: navidromeApi.settings });
+  const [ndQuery, setNdQuery] = useState('');
+  const [ndResults, setNdResults] = useState<any[] | null>(null);
   const ytDownload = useYouTubeDownload();
 
   const ytInfo = useYouTubeInfo();
@@ -797,6 +803,22 @@ function LibraryTab() {
     });
   };
 
+  const handleNdSearch = () => {
+    if (!ndQuery.trim() || !configId) return;
+    ndSearch.mutate({ configId, query: ndQuery }, {
+      onSuccess: (data: any) => setNdResults(Array.isArray(data) ? data : []),
+      onError: (e: any) => toast.error(e?.response?.data?.error || t('musicBots.navidrome.searchFailed')),
+    });
+  };
+
+  const handleNdImport = (id: string) => {
+    if (!configId) return;
+    ndImport.mutate({ configId, id }, {
+      onSuccess: () => toast.success(t('musicBots.navidrome.imported')),
+      onError: (e: any) => toast.error(e?.response?.data?.error || t('musicBots.navidrome.importFailed')),
+    });
+  };
+
   const handleYtDownload = (url: string) => {
     if (!configId) return;
     ytDownload.mutate({ configId, url }, {
@@ -819,6 +841,7 @@ function LibraryTab() {
   const sourceIcon = (source: string) => {
     switch (source) {
       case 'youtube': return <Youtube className="h-3 w-3" />;
+      case 'navidrome': return <Music2 className="h-3 w-3" />;
       case 'url': return <Link className="h-3 w-3" />;
       default: return <FileAudio className="h-3 w-3" />;
     }
@@ -1038,6 +1061,58 @@ function LibraryTab() {
           {t('musicBots.library.search')}
         </Button>
       </div>
+
+      {/* Navidrome */}
+      {ndSettings?.enabled && (
+        <>
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={ndQuery}
+                onChange={(e) => setNdQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleNdSearch()}
+                placeholder={t('musicBots.navidrome.searchPlaceholder')}
+                className="pl-9"
+              />
+            </div>
+            <Button variant="outline" size="sm" onClick={handleNdSearch} disabled={ndSearch.isPending || !ndQuery.trim()}>
+              {ndSearch.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Music2 className="h-4 w-4 mr-1" />}
+              {t('musicBots.navidrome.search')}
+            </Button>
+          </div>
+          {ndResults && (
+            <Card>
+              <CardHeader className="py-2 px-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-xs">{t('musicBots.navidrome.results', { n: ndResults.length })}</CardTitle>
+                  <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setNdResults(null)}>
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="max-h-60 overflow-y-auto">
+                  {ndResults.map((r) => (
+                    <div key={r.id} className="flex items-center gap-3 px-3 py-2 hover:bg-muted/50 transition-colors">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-medium truncate">{r.title}</p>
+                        <p className="text-[10px] text-muted-foreground">{[r.artist, r.album].filter(Boolean).join(' - ')}{r.duration ? ` - ${formatTime(r.duration)}` : ''}</p>
+                      </div>
+                      <Button variant="outline" size="sm" className="h-7 text-xs shrink-0"
+                        onClick={() => handleNdImport(r.id)}
+                        disabled={ndImport.isPending}
+                      >
+                        <Download className="h-3 w-3 mr-1" /> {t('musicBots.navidrome.add')}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
 
       {/* YouTube Results */}
       {showYt && ytResults.length > 0 && (
