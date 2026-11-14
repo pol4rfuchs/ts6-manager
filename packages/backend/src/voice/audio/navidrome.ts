@@ -11,6 +11,8 @@ export interface NavidromeConfig {
   username: string;
   password: string;
   requestTimeoutMs?: number;
+  /** Where the manager sees the Navidrome music folder (local folder mode); empty = stream over HTTP. */
+  musicFolder?: string | null;
 }
 
 /** Prefix of `Song.filePath` / `QueueItem.filePath` for a track that is streamed from Navidrome. */
@@ -36,6 +38,8 @@ export interface NavidromeTrack {
   duration: number | null;
   suffix: string | null;
   size: number | null;
+  /** Path Navidrome reports (made up from tags unless the player reports real paths). */
+  path: string | null;
 }
 
 const API_VERSION = '1.16.1';
@@ -145,6 +149,7 @@ export async function searchTracks(cfg: NavidromeConfig, rawQuery: string, count
     duration: typeof s.duration === 'number' ? s.duration : null,
     suffix: s.suffix ? String(s.suffix) : null,
     size: typeof s.size === 'number' ? s.size : null,
+    path: typeof s.path === 'string' && s.path ? s.path : null,
   }));
 }
 
@@ -160,6 +165,7 @@ export async function getTrack(cfg: NavidromeConfig, id: string): Promise<Navidr
     duration: typeof s.duration === 'number' ? s.duration : null,
     suffix: s.suffix ? String(s.suffix) : null,
     size: typeof s.size === 'number' ? s.size : null,
+    path: typeof s.path === 'string' && s.path ? s.path : null,
   };
 }
 

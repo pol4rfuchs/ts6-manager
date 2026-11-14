@@ -150,8 +150,16 @@ musicLibraryRoutes.post('/navidrome/import', async (req: Request, res: Response,
 
     const sourceUrl = `navidrome:${id}`;
     const existing = await prisma.song.findFirst({ where: { sourceUrl, serverConfigId: configId } });
-    // A song that is already streamed is returned as it is
-    if (existing && isNavidromePath(existing.filePath)) return res.json(existing);
+    // A song that is already streamed is returned as it is. One added before the local
+    // folder mode (no path stored yet) learns its Navidrome path now.
+    if (existing && isNavidromePath(existing.filePath)) {
+      if (existing.navidromePath) return res.json(existing);
+      try {
+        const known = await getTrack(cfg, id);
+        if (known.path) return res.json(await prisma.song.update({ where: { id: existing.id }, data: { navidromePath: known.path } }));
+      } catch { /* Navidrome unreachable: the song still plays over HTTP */ }
+      return res.json(existing);
+    }
 
     let track;
     try {
@@ -167,6 +175,7 @@ musicLibraryRoutes.post('/navidrome/import', async (req: Request, res: Response,
       source: 'navidrome',
       sourceUrl,
       fileSize: track.size,
+      navidromePath: track.path,
       serverConfigId: configId,
     };
     // A copy made by an older version is replaced by the stream; its file is removed

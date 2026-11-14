@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { createHash } from 'crypto';
-import { setNavidromeUrlResolver, resolvePlaybackInput } from './stream-source.js';
+import { setNavidromeInputResolver, resolvePlaybackInput } from './stream-source.js';
 import { buildStreamUrl, isNavidromePath, navidromePath, navidromeTrackId } from './audio/navidrome.js';
 import { buildFileDecodeArgs } from './audio/pipeline.js';
 
@@ -31,17 +31,21 @@ describe('stream url', () => {
 });
 
 describe('playback input', () => {
-  afterEach(() => setNavidromeUrlResolver(null));
+  afterEach(() => setNavidromeInputResolver(null));
   it('leaves a local file untouched', async () => {
     expect(await resolvePlaybackInput('/data/music/a.mp3')).toEqual({ input: '/data/music/a.mp3', remote: false });
   });
   it('turns a navidrome path into a remote url', async () => {
-    setNavidromeUrlResolver(async (id) => `http://nd.example/rest/download?id=${id}`);
+    setNavidromeInputResolver(async (id) => ({ input: `http://nd.example/rest/download?id=${id}`, remote: true }));
     expect(await resolvePlaybackInput('navidrome:T9')).toEqual({ input: 'http://nd.example/rest/download?id=T9', remote: true });
+  });
+  it('passes a local file through as not remote', async () => {
+    setNavidromeInputResolver(async () => ({ input: '/media/music/a.flac', remote: false }));
+    expect(await resolvePlaybackInput('navidrome:T9')).toEqual({ input: '/media/music/a.flac', remote: false });
   });
   it('fails with a clear message when Navidrome is not configured', async () => {
     await expect(resolvePlaybackInput('navidrome:T9')).rejects.toThrow('Navidrome is not configured');
-    setNavidromeUrlResolver(async () => null);
+    setNavidromeInputResolver(async () => null);
     await expect(resolvePlaybackInput('navidrome:T9')).rejects.toThrow('Navidrome is not configured');
   });
 });

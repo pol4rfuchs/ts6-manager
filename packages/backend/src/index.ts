@@ -15,8 +15,9 @@ import { loadSamlRuntime } from './auth/saml/saml-config.js';
 import { config } from './config.js';
 import { setYtCookieFile } from './voice/audio/youtube.js';
 import { PlaylistImporter } from './voice/playlist-import.js';
-import { setNavidromeUrlResolver } from './voice/stream-source.js';
-import { buildStreamUrl } from './voice/audio/navidrome.js';
+import { setNavidromeInputResolver } from './voice/stream-source.js';
+import { createNavidromeInputResolver } from './voice/navidrome-input.js';
+import { navidromePath, getTrack } from './voice/audio/navidrome.js';
 import { loadNavidromeConfig } from './routes/navidrome.routes.js';
 import jwt from 'jsonwebtoken';
 import fs from 'fs';
@@ -130,11 +131,30 @@ async function main() {
 
   // Make services available via app.locals
   app.locals.prisma = prisma;
-  // Tracks of a Navidrome server are streamed on demand; the URL is built from the saved settings
-  setNavidromeUrlResolver(async (trackId) => {
-    const cfg = await loadNavidromeConfig(prisma);
-    return cfg ? buildStreamUrl(cfg, trackId) : null;
-  });
+  // Tracks of a Navidrome server are read from the mounted music folder if set up, else streamed on demand
+  setNavidromeInputResolver(createNavidromeInputResolver({
+    loadConfig: () => loadNavidromeConfig(prisma),
+    findReportedPath: async (trackId) => {
+      const song = await prisma.song.findFirst({
+        where: { sourceUrl: navidromePath(trackId), navidromePath: { not: null } },
+        select: { navidromePath: true },
+      });
+      return song?.navidromePath ?? null;
+    },
+    // Songs added before the path was stored: ask Navidrome once (short timeout) and remember it
+    learnReportedPath: async (cfg, trackId) => {
+      try {
+        const track = await getTrack({ ...cfg, requestTimeoutMs: 5000 }, trackId);
+        if (track.path) {
+          await prisma.song.updateMany({ where: { sourceUrl: navidromePath(trackId) }, data: { navidromePath: track.path } });
+        }
+        return track.path;
+      } catch {
+        return null;
+      }
+    },
+    log: (message) => console.log(message),
+  }));
   app.locals.connectionPool = connectionPool;
   app.locals.wss = wss;
 
