@@ -114,6 +114,11 @@ Full security review of the codebase. Twelve issues, three of them high severity
 
 ### Fixed
 
+- **Music bot routes answered 500 for a wrong id in the body.** `POST /api/music-bots/:id/queue`
+  with a missing or non-numeric `songId` (and `play` / `play-radio` with a non-numeric
+  `songId` / `stationId`) passed `NaN` to Prisma, which rejected the query and the client got a
+  500. These ids are now checked and a wrong one gets a 400. Tests in
+  `routes/music-bots.routes.test.ts`.
 - **Empty lists answered with HTTP 502.** For a list without entries (bans, complaints,
   offline messages) TeamSpeak answers error 1281 "database empty result set" with HTTP
   200. The WebQuery client turned that into a `TSApiError` and the route into a 502.
