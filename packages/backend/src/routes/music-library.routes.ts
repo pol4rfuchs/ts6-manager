@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { requireRole } from '../middleware/rbac.js';
 import { AppError } from '../middleware/error-handler.js';
 import { downloadYouTube, searchYouTube, getYouTubeUrlInfo } from '../voice/audio/youtube.js';
-import { searchTracks, getTrack, validateSearchQuery, navidromePath, isNavidromePath } from '../voice/audio/navidrome.js';
+import { searchTracks, getTrack, validateSearchQuery, navidromePath, isNavidromePath, navidromeErrorText } from '../voice/audio/navidrome.js';
 import { loadNavidromeConfig } from './navidrome.routes.js';
 import multer from 'multer';
 import path from 'path';
@@ -132,7 +132,7 @@ musicLibraryRoutes.post('/navidrome/search', async (req: Request, res: Response,
     try {
       res.json(await searchTracks(cfg, query, 20));
     } catch (e: any) {
-      throw new AppError(502, `Navidrome: ${e.message}`);
+      throw new AppError(502, navidromeErrorText(e.message));
     }
   } catch (err) { next(err); }
 });
@@ -157,7 +157,7 @@ musicLibraryRoutes.post('/navidrome/import', async (req: Request, res: Response,
     try {
       track = await getTrack(cfg, id);
     } catch (e: any) {
-      throw new AppError(502, `Navidrome: ${e.message}`);
+      throw new AppError(502, navidromeErrorText(e.message));
     }
     const data = {
       title: track.title,

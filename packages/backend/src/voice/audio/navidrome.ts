@@ -41,6 +41,14 @@ export interface NavidromeTrack {
 const API_VERSION = '1.16.1';
 const CLIENT_NAME = 'ts6-manager';
 
+/**
+ * Text for an error shown to the user: "Navidrome: <message>", unless the message
+ * already starts with "Navidrome" (then a second prefix would only repeat it).
+ */
+export function navidromeErrorText(message: string): string {
+  return /^navidrome\b/i.test(message) ? message : `Navidrome: ${message}`;
+}
+
 export function normalizeBaseUrl(raw: string): string {
   const u = new URL(String(raw || '').trim());
   if (u.protocol !== 'http:' && u.protocol !== 'https:') {
