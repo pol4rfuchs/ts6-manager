@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, security-hardening]
+    branches: [main, dev, security-hardening]
   pull_request:
   # Advisories are published without any push, and GitHub refuses to re-run a
   # run older than a month: re-audit weekly, and allow a manual run.
