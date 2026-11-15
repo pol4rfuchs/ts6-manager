@@ -419,7 +419,7 @@
       "toastSaved": "Navidrome-Einstellungen gespeichert",
       "toastSaveFailed": "Speichern fehlgeschlagen",
       "musicFolder": "Musikordner (optional)",
-      "musicFolderHint": "Wo dieser Manager den Navidrome-Musikordner sieht, nur lesend (in Home Assistant der Medienordner, zum Beispiel /media/music). Ist er gesetzt und liegt ein Titel dort, wird er aus dem Ordner gelesen: kein Netzabruf, keine Zugangsdaten in einer URL, und Navidrome darf aus sein. Sonst wird der Titel von Navidrome gestreamt. In Navidrome \"Report Real Path\" für den Player \"ts6-manager\" einschalten; ohne das meldet Navidrome erfundene Pfade und der Ordner wird nicht genutzt. Leer lassen = immer streamen.",
+      "musicFolderHint": "Wo dieser Manager den Navidrome-Musikordner sieht, nur lesend (in Home Assistant der Medienordner, zum Beispiel /media/music). Ist er gesetzt und liegt ein Titel dort, wird er aus dem Ordner gelesen: kein Netzabruf, keine Zugangsdaten in einer URL, und Navidrome darf aus sein. Sonst wird der Titel von Navidrome gestreamt. In Navidrome \"Report Real Path\" für den Player \"ts6-manager\" einschalten; ohne das meldet Navidrome erfundene Pfade und der Ordner wird nicht genutzt. Die Verbindungsprüfung zeigt nur, ob der Ordner lesbar ist. Der Ordner muss genau der Pfad vor dem Dateinamen sein, den Navidrome als echten Pfad meldet: Meldet Navidrome /media/music/Band/Album/Titel.wav, trägst du /media/music ein. Ein falscher Ordner ist kein Fehler: Der Manager streamt den Titel dann über HTTP. Leer lassen = immer streamen.",
       "folderReadableYes": "Musikordner lesbar: ja",
       "folderReadableNo": "Musikordner lesbar: nein"
     }
