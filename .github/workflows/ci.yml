@@ -13,10 +13,17 @@ on:
 permissions:
   contents: read
 
+# A newer push to the same branch or PR cancels the run still in progress,
+# so quick follow-up pushes do not pile up full runs.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   node:
     name: Lint, typecheck, test, build
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
 
@@ -56,6 +63,7 @@ jobs:
   sidecar:
     name: Build, vet and scan Go sidecar
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: packages/sidecar
@@ -81,6 +89,7 @@ jobs:
   eol:
     name: Runtime end of life
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
 
@@ -94,6 +103,7 @@ jobs:
   docker:
     name: Build and scan Docker images
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       # Every image gets scanned, even when another one has findings.
       fail-fast: false
