@@ -1,8 +1,10 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import express from 'express';
 import type { AddressInfo } from 'net';
 import { musicBotRoutes } from './music-bots.routes.js';
-import { AppError } from '../middleware/error-handler.js';
+import { AppError, errorHandler } from '../middleware/error-handler.js';
+import { createNavidromeInputResolver } from '../voice/navidrome-input.js';
+import { setNavidromeInputResolver } from '../voice/stream-source.js';
 
 function makeApp(findSong = vi.fn().mockResolvedValue({ id: 5, title: 't', filePath: '/x.mp3', source: 'local' })) {
   const bot = {
@@ -88,5 +90,68 @@ describe('music bot routes: seek', () => {
     }
     expect((await post(app, '/api/music-bots/1/seek')).status).toBe(400);
     expect(bot.seek).not.toHaveBeenCalled();
+  });
+});
+
+describe('music bot routes: play a Navidrome track that cannot be started', () => {
+  // the real error handler: it turns a PlaybackStartError into the 502 answer
+  function makeAppWithRealErrors(song: any) {
+    const { app, bot } = makeApp(vi.fn().mockResolvedValue(song));
+    (app as any)._router.stack = (app as any)._router.stack.filter((l: any) => l.handle?.length !== 4);
+    app.use(errorHandler);
+    return { app, bot };
+  }
+  const song = { id: 5, title: 'T', filePath: 'navidrome:T1', source: 'navidrome', sourceUrl: 'navidrome:T1', navidromePath: null };
+  afterEach(() => setNavidromeInputResolver(null));
+
+  it('path not stored and Navidrome not reachable: 502 with the readable text, queue and bot untouched', async () => {
+    setNavidromeInputResolver(createNavidromeInputResolver({
+      loadConfig: async () => ({ url: 'http://nd.example:4533', username: 'alice', password: 'pw', musicFolder: '/media/music' }),
+      findReportedPath: async () => null,
+      learnReportedPath: async () => { throw new Error('Navidrome is not reachable. Check the URL and port.'); },
+    }));
+    const { app, bot } = makeAppWithRealErrors(song);
+    const r = await post(app, '/api/music-bots/1/play', { songId: 5 });
+    expect(r.status).toBe(502);
+    expect(r.body.error).toBe('Navidrome is not reachable. Check the URL and port.');
+    expect(bot.queue.add).not.toHaveBeenCalled();
+    expect(bot.queue.playAt).not.toHaveBeenCalled();
+    expect(bot.play).not.toHaveBeenCalled();
+  });
+
+  it('Navidrome not configured at all: 502 with a readable text, nothing is started', async () => {
+    const { app, bot } = makeAppWithRealErrors(song);
+    const r = await post(app, '/api/music-bots/1/play', { songId: 5 });
+    expect(r.status).toBe(502);
+    expect(r.body.error).toMatch(/Navidrome is not configured/);
+    expect(bot.play).not.toHaveBeenCalled();
+  });
+
+  it('a start error from the bot is answered with 502 and the same readable text', async () => {
+    const { PlaybackStartError } = await import('../voice/playback-error.js');
+    setNavidromeInputResolver(async () => ({ input: 'http://nd.example/x', remote: true }));
+    const { app, bot } = makeAppWithRealErrors(song);
+    bot.play.mockRejectedValue(new PlaybackStartError('Navidrome did not deliver the track. Check that Navidrome is running and its settings are correct.'));
+    const r = await post(app, '/api/music-bots/1/play', { songId: 5 });
+    expect(r.status).toBe(502);
+    expect(r.body.error).toMatch(/^Navidrome did not deliver the track/);
+    expect(JSON.stringify(r.body)).not.toMatch(/nd\.example|rest\/download/);
+  });
+
+  it('a local song plays as before (no Navidrome involved)', async () => {
+    const { app, bot } = makeAppWithRealErrors({ id: 5, title: 't', filePath: '/data/music/a.mp3', source: 'local' });
+    const r = await post(app, '/api/music-bots/1/play', { songId: 5 });
+    expect(r.status).toBe(200);
+    expect(bot.queue.add).toHaveBeenCalledTimes(1);
+    expect(bot.play).toHaveBeenCalledTimes(1);
+  });
+
+  it('a streamed song plays as before when Navidrome is configured', async () => {
+    setNavidromeInputResolver(async () => ({ input: 'http://nd.example/x', remote: true }));
+    const { app, bot } = makeAppWithRealErrors(song);
+    const r = await post(app, '/api/music-bots/1/play', { songId: 5 });
+    expect(r.status).toBe(200);
+    expect(bot.play).toHaveBeenCalledTimes(1);
+    expect(bot.play.mock.calls[0][1]).toEqual({ input: 'http://nd.example/x', remote: true });
   });
 });

@@ -1,13 +1,17 @@
 import { buildStreamUrl, type NavidromeConfig } from './audio/navidrome.js';
 import { resolveLocalFile } from './audio/navidrome-local.js';
 import type { NavidromeInputResolver } from './stream-source.js';
+import { PlaybackStartError } from './playback-error.js';
 
 export interface NavidromeInputDeps {
   /** Saved Navidrome settings, or null when Navidrome is off or incomplete. */
   loadConfig(): Promise<NavidromeConfig | null>;
   /** The path Navidrome reported for the track when it was added, if known. */
   findReportedPath(trackId: string): Promise<string | null>;
-  /** Asks Navidrome for the path of a track added before it was stored (and remembers it). */
+  /**
+   * Asks Navidrome for the path of a track added before it was stored (and remembers it).
+   * Throws an Error with a readable message when Navidrome cannot be asked.
+   */
   learnReportedPath?(cfg: NavidromeConfig, trackId: string): Promise<string | null>;
   log?(message: string): void;
 }
@@ -24,7 +28,16 @@ export function createNavidromeInputResolver(deps: NavidromeInputDeps): Navidrom
     if (!cfg) return null;
 
     if (cfg.musicFolder) {
-      const reported = (await deps.findReportedPath(trackId)) ?? (await deps.learnReportedPath?.(cfg, trackId)) ?? null;
+      let reported = await deps.findReportedPath(trackId);
+      if (!reported && deps.learnReportedPath) {
+        try {
+          reported = await deps.learnReportedPath(cfg, trackId);
+        } catch (err) {
+          // The path is not stored and Navidrome cannot give it: the HTTP stream would fail as
+          // well, so report it now instead of starting a decode that ends in silence.
+          throw new PlaybackStartError((err as Error).message, { cause: err });
+        }
+      }
       const local = await resolveLocalFile(cfg.musicFolder, reported);
       if (local) return { input: local, remote: false };
       // No paths in the log: the reported one is data from a remote server

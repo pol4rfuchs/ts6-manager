@@ -1,4 +1,5 @@
 import { isNavidromePath, navidromeTrackId } from './audio/navidrome.js';
+import { PlaybackStartError } from './playback-error.js';
 
 /**
  * Decides how a Navidrome track is read: a local file when the music folder is
@@ -28,6 +29,6 @@ export interface PlaybackInput {
 export async function resolvePlaybackInput(filePath: string): Promise<PlaybackInput> {
   if (!isNavidromePath(filePath)) return { input: filePath, remote: false };
   const resolved = navidromeResolver ? await navidromeResolver(navidromeTrackId(filePath)) : null;
-  if (!resolved) throw new Error('Navidrome is not configured, so this track cannot be played');
+  if (!resolved) throw new PlaybackStartError('Navidrome is not configured, so this track cannot be played');
   return resolved;
 }

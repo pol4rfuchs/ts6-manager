@@ -17,7 +17,7 @@ import { setYtCookieFile } from './voice/audio/youtube.js';
 import { PlaylistImporter } from './voice/playlist-import.js';
 import { setNavidromeInputResolver } from './voice/stream-source.js';
 import { createNavidromeInputResolver } from './voice/navidrome-input.js';
-import { navidromePath, getTrack } from './voice/audio/navidrome.js';
+import { navidromePath, getTrack, navidromeErrorText } from './voice/audio/navidrome.js';
 import { loadNavidromeConfig } from './routes/navidrome.routes.js';
 import jwt from 'jsonwebtoken';
 import fs from 'fs';
@@ -143,15 +143,16 @@ async function main() {
     },
     // Songs added before the path was stored: ask Navidrome once (short timeout) and remember it
     learnReportedPath: async (cfg, trackId) => {
+      let path: string | null;
       try {
-        const track = await getTrack({ ...cfg, requestTimeoutMs: 5000 }, trackId);
-        if (track.path) {
-          await prisma.song.updateMany({ where: { sourceUrl: navidromePath(trackId) }, data: { navidromePath: track.path } });
-        }
-        return track.path;
-      } catch {
-        return null;
+        path = (await getTrack({ ...cfg, requestTimeoutMs: 5000 }, trackId)).path;
+      } catch (err) {
+        throw new Error(navidromeErrorText((err as Error).message), { cause: err });
       }
+      if (path) {
+        await prisma.song.updateMany({ where: { sourceUrl: navidromePath(trackId) }, data: { navidromePath: path } });
+      }
+      return path;
     },
     log: (message) => console.log(message),
   }));
