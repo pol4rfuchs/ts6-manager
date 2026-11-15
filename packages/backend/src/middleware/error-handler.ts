@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
+import { PlaybackStartError } from '../voice/playback-error.js';
 
 export class AppError extends Error {
   constructor(
@@ -30,6 +31,12 @@ export function errorHandler(err: Error, _req: Request, res: Response, _next: Ne
       error: err.message,
       details: err.details,
     });
+    return;
+  }
+
+  // A track that cannot be started: the message is written for the user
+  if (err instanceof PlaybackStartError) {
+    res.status(502).json({ error: err.message });
     return;
   }
 

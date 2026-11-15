@@ -3,6 +3,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { createNavidromeInputResolver } from './navidrome-input.js';
+import { PlaybackStartError } from './playback-error.js';
 
 const base = { url: 'http://nd.example:4533', username: 'alice', password: 'topsecret' };
 
@@ -64,6 +65,40 @@ describe('local folder first, HTTP second', () => {
   it('never asks for the path when the mode is off', async () => {
     let asked = 0;
     await make({ ...base, musicFolder: null }, null, [], async () => { asked++; return null; })('T1');
+    expect(asked).toBe(0);
+  });
+
+  it('an absolute path outside the folder falls back to HTTP', async () => {
+    const r = await make({ ...base, musicFolder: music }, '/etc/passwd')('T1');
+    expect(r!.remote).toBe(true);
+  });
+  it('a symlink that leads out of the folder falls back to HTTP', async () => {
+    const secret = path.join(root, 'secret.txt');
+    fs.writeFileSync(secret, 'secret');
+    fs.symlinkSync(secret, path.join(music, 'Band', 'link.flac'));
+    const r = await make({ ...base, musicFolder: music }, 'Band/link.flac')('T1');
+    expect(r!.remote).toBe(true);
+  });
+
+  it('path not stored and Navidrome cannot be asked: a readable PlaybackStartError, no stream URL', async () => {
+    const logs: string[] = [];
+    const resolver = make({ ...base, musicFolder: music }, null, logs, async () => {
+      throw new Error('Navidrome is not reachable. Check the URL and port.');
+    });
+    const err = await resolver('T1').catch((e) => e);
+    expect(err).toBeInstanceOf(PlaybackStartError);
+    expect(err.message).toBe('Navidrome is not reachable. Check the URL and port.');
+    expect(err.message).not.toMatch(/topsecret|alice|nd\.example|\/rest\//);
+    expect(logs).toEqual([]);
+  });
+  it('path not stored but Navidrome answers without a path: HTTP as before', async () => {
+    const r = await make({ ...base, musicFolder: music }, null, [], async () => null)('T1');
+    expect(r!.remote).toBe(true);
+  });
+  it('path stored but the file is missing: still HTTP (Navidrome was not asked)', async () => {
+    let asked = 0;
+    const r = await make({ ...base, musicFolder: music }, 'Band/gone.flac', [], async () => { asked++; return null; })('T1');
+    expect(r!.remote).toBe(true);
     expect(asked).toBe(0);
   });
 });

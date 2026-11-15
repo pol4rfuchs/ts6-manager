@@ -12,6 +12,10 @@ import { getCookieArgs, runYtDlp, assertSafeUrl } from './audio/youtube.js';
 import { validateUrl } from '../utils/url-validator.js';
 import { resolvePlaybackInput, type PlaybackInput } from './stream-source.js';
 import { PcmBuffer, resolveWaterMarks } from './pcm-buffer.js';
+import { PlaybackStartError, MSG_TRACK_UNREADABLE, MSG_NAVIDROME_NO_AUDIO } from './playback-error.js';
+
+/** How long play() waits for the first audio (or a failure) before it reports success anyway. */
+const START_WAIT_MS = 3000;
 
 /** Resolve a YouTube/yt-dlp-compatible URL to a direct stream URL */
 async function resolveVideoUrl(url: string, maxHeight: number = 720): Promise<string> {
@@ -375,14 +379,14 @@ export class VoiceBot extends EventEmitter {
     await this.start();
   }
 
-  async play(item: QueueItem): Promise<void> {
+  async play(item: QueueItem, resolved?: PlaybackInput): Promise<void> {
     if (this._status !== 'connected' && this._status !== 'playing' && this._status !== 'paused') {
       throw new Error('Bot is not connected');
     }
 
     // Resolve first: a track streamed from Navidrome fails here (not configured)
     // without disturbing what is playing now.
-    const playback = await resolvePlaybackInput(item.filePath);
+    const playback = resolved ?? (await resolvePlaybackInput(item.filePath));
 
     this.stopIcyPolling();
     this.stopPlayback();
@@ -397,18 +401,35 @@ export class VoiceBot extends EventEmitter {
       // Streamed playback: ffmpeg decodes while we play. The decoded audio waits in a
       // bounded buffer (PcmBuffer): ffmpeg is paused when it holds about 20 s and
       // continues at 10 s, so memory stays constant however long the track is.
-      this.startFileStream(item, 0);
+      const started = this.startFileStream(item, 0);
       this.startFilePlaybackLoop(item);
+      // Playback is already running; this only keeps the call open until the first audio
+      // arrives (milliseconds) so that a track that cannot be read is reported to the caller.
+      await started;
     } catch (err) {
-      this._status = 'connected';
-      this._nowPlaying = null;
-      this.emit('statusChange', this._status);
+      this.abortStart();
       throw err;
     }
   }
 
-  /** Spawn the decode ffmpeg for a file at the given offset and wire its events. */
-  private startFileStream(item: QueueItem, startSeconds: number): void {
+  /** Back to "connected" after a track could not be started. */
+  private abortStart(): void {
+    this.stopPlayback();
+    this._nowPlaying = null;
+    this._status = 'connected';
+    this.emit('statusChange', this._status);
+    this.resetNickname();
+  }
+
+  /**
+   * Spawn the decode ffmpeg for a file at the given offset and wire its events.
+   *
+   * The returned promise settles when the start is clear: it resolves with the first
+   * audio (or after START_WAIT_MS without news) and rejects with a PlaybackStartError
+   * when ffmpeg ends with an error before any audio came (the file is missing, Navidrome
+   * is not reachable, wrong login, track deleted). Its message has no path, URL or login.
+   */
+  private startFileStream(item: QueueItem, startSeconds: number): Promise<void> {
     // The URL of a streamed track carries a token: it is never logged, `item.filePath` is
     const playback = this.currentPlayback ?? { input: item.filePath, remote: false };
     const stream = this.pipeline.toPcmFileStream(playback.input, startSeconds, { remote: playback.remote });
@@ -421,9 +442,22 @@ export class VoiceBot extends EventEmitter {
     this.framesSent = 0;
     this.seekOffsetSec = startSeconds;
 
+    let gotAudio = false;
+    let settle: { ok: () => void; fail: (err: Error) => void } = { ok: () => {}, fail: () => {} };
+    const started = new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(resolve, START_WAIT_MS);
+      settle = {
+        ok: () => { clearTimeout(timer); resolve(); },
+        fail: (err) => { clearTimeout(timer); reject(err); },
+      };
+    });
+    const failMessage = playback.remote ? MSG_NAVIDROME_NO_AUDIO : MSG_TRACK_UNREADABLE;
+
     stream.stdout.on('data', (chunk: Buffer) => {
       if (sEpoch !== this.streamEpoch) return;
+      gotAudio = true;
       this.pcm.push(chunk);
+      settle.ok();
     });
 
     stream.process.on('close', (code) => {
@@ -431,15 +465,25 @@ export class VoiceBot extends EventEmitter {
       // The tick loop drains the remaining buffer, then ends the track
       this.fileDecodeDone = true;
       if (code !== 0 && code !== null) {
-        console.error(`[VoiceBot] Decode ffmpeg exited with code ${code} for ${item.filePath}`);
+        if (!gotAudio) {
+          // Nothing was played: the caller gets the error (one log line comes from there)
+          settle.fail(new PlaybackStartError(failMessage));
+        } else {
+          console.error(`[VoiceBot] Decode ffmpeg exited with code ${code} for track ${item.id}`);
+        }
+      } else {
+        settle.ok();
       }
     });
 
     stream.process.on('error', (err) => {
       if (sEpoch !== this.streamEpoch) return;
       this.fileDecodeDone = true;
-      this.emit('error', err);
+      if (!gotAudio) settle.fail(new PlaybackStartError(failMessage, { cause: err }));
+      else this.emit('error', err);
     });
+
+    return started;
   }
 
   /** A PCM buffer wired to the current decode process. */
@@ -592,7 +636,11 @@ export class VoiceBot extends EventEmitter {
       this.streamKill();
       this.streamKill = null;
     }
-    this.startFileStream(item, target);
+    this.startFileStream(item, target).catch((err) => {
+      // The track cannot be read at that position: back to "connected" and tell the manager
+      this.abortStart();
+      this.emit('error', err);
+    });
 
     if (this._status === 'playing') {
       this.startFilePlaybackLoop(item);

@@ -419,7 +419,7 @@
       "toastSaved": "Navidrome settings saved",
       "toastSaveFailed": "Failed to save",
       "musicFolder": "Music folder (optional)",
-      "musicFolderHint": "Where this manager sees the Navidrome music folder, read only (in Home Assistant the media folder, for example /media/music). If it is set and a track is found there, it is read from the folder: no network, no login in a URL, and Navidrome may be off. Otherwise the track is streamed from Navidrome. In Navidrome, switch on \"Report Real Path\" for the player \"ts6-manager\"; without it Navidrome reports made-up paths and the folder is not used. Leave empty to always stream.",
+      "musicFolderHint": "Where this manager sees the Navidrome music folder, read only (in Home Assistant the media folder, for example /media/music). If it is set and a track is found there, it is read from the folder: no network, no login in a URL, and Navidrome may be off. Otherwise the track is streamed from Navidrome. In Navidrome, switch on \"Report Real Path\" for the player \"ts6-manager\"; without it Navidrome reports made-up paths and the folder is not used. The connection test only shows whether the folder can be read. The folder has to be exactly the path in front of the file name that Navidrome reports as the real path: if Navidrome reports /media/music/Band/Album/Title.wav, enter /media/music. A wrong folder is not an error: the manager then streams the track over HTTP. Leave empty to always stream.",
       "folderReadableYes": "Music folder readable: yes",
       "folderReadableNo": "Music folder readable: no"
     }

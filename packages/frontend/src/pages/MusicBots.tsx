@@ -692,7 +692,8 @@ function BotsTab() {
           if (showPlayDialog) {
             playSong.mutate({ botId: showPlayDialog, songId }, {
               onSuccess: () => { toast.success(t('musicBots.toast.playing')); setShowPlayDialog(null); },
-              onError: () => toast.error(t('musicBots.toast.playSongFailed')),
+              // The server's message says why (for example Navidrome is not reachable)
+              onError: (e: any) => toast.error(e?.response?.data?.error || t('musicBots.toast.playSongFailed')),
             });
           }
         }}
@@ -1766,7 +1767,9 @@ function QueueTab() {
                     <div className="min-w-0">
                       <button
                         className="text-xs truncate block text-left hover:text-primary transition-colors w-full"
-                        onClick={() => effectiveBot && playFromQueue.mutate({ botId: effectiveBot, index: i })}
+                        onClick={() => effectiveBot && playFromQueue.mutate({ botId: effectiveBot, index: i }, {
+                          onError: (e: any) => toast.error(e?.response?.data?.error || t('musicBots.toast.playSongFailed')),
+                        })}
                         title={t('musicBots.queue.clickToPlay')}
                       >
                         {item.title}

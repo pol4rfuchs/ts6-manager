@@ -3,6 +3,7 @@ import { requireRole } from '../middleware/rbac.js';
 import { AppError } from '../middleware/error-handler.js';
 import type { VoiceBotManager } from '../voice/voice-bot-manager.js';
 import { downloadYouTube } from '../voice/audio/youtube.js';
+import { resolvePlaybackInput } from '../voice/stream-source.js';
 import { playerWidgetToken } from './widget-public.routes.js';
 
 export const musicBotRoutes: Router = Router();
@@ -213,10 +214,15 @@ musicBotRoutes.post('/:id/play', async (req: Request, res: Response, next) => {
       sourceUrl: song.sourceUrl ?? undefined,
     };
 
+    // Decide how the track is read before the queue is touched: a track that cannot be
+    // started (for example Navidrome is not reachable) is answered with an error and
+    // leaves the queue and the bot as they are.
+    const playback = await resolvePlaybackInput(queueItem.filePath);
+
     // Add to queue so repeat modes work, then play
     bot.queue.add(queueItem);
     bot.queue.playAt(bot.queue.length - 1);
-    await bot.play(queueItem);
+    await bot.play(queueItem, playback);
 
     res.json({ success: true });
   } catch (err) { next(err); }
