@@ -116,6 +116,7 @@ playlistRoutes.post('/:id/songs', async (req: Request, res: Response, next) => {
     const playlistId = parseInt(req.params.id as string);
     const { songId } = req.body;
     if (!songId) throw new AppError(400, 'songId is required');
+    if (!/^\d+$/.test(String(songId).trim())) throw new AppError(400, 'songId must be an integer');
 
     // Get next position
     const maxPos = await prisma.playlistSong.aggregate({
