@@ -11,7 +11,7 @@ const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 const API = 'https://endoflife.date/api';
 const DOCKERFILES = ['Dockerfile.backend', 'Dockerfile.frontend', 'Dockerfile.sidecar'];
 // Images whose tag pins no runtime tracked here; Trivy still reports their OS.
-const UNTRACKED = new Set(['nginx-unprivileged', 'scratch']);
+const UNTRACKED = new Set(['nginx', 'nginx-unprivileged', 'scratch']);
 // endoflife.date only dates a Go release once it is already out of support.
 const NEWER_RELEASE_NOTE = {
   go: 'Go patches only the two latest releases, so this one loses security fixes when the next ships',

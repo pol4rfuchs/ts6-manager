@@ -12,8 +12,11 @@ RUN pnpm install --no-frozen-lockfile
 RUN pnpm --filter @ts6/common run build
 RUN pnpm --filter @ts6/frontend run build
 
-# Production: serve with nginx, running unprivileged (no root in the container)
-FROM nginxinc/nginx-unprivileged:stable-alpine AS production
+# Production: serve with nginx, running unprivileged (no root in the container).
+# Built on the official nginx image and made unprivileged below, the same way
+# nginxinc/nginx-unprivileged does it: that image is rebuilt late and was a month
+# behind on nginx security releases (1.30.6 while 1.30.7 fixed six HIGH/CRITICAL CVEs).
+FROM nginx:stable-alpine AS production
 
 COPY --from=build /app/packages/frontend/dist /usr/share/nginx/html
 
@@ -66,6 +69,14 @@ RUN printf 'server {\n\
     gzip on;\n\
     gzip_types text/plain text/css application/json application/javascript text/xml;\n\
 }\n' > /etc/nginx/conf.d/default.conf
+
+# Unprivileged: no `user` directive, pid file and temp paths under /tmp (conf.d is
+# included inside the http block), config and cache directories writable by nginx.
+RUN sed -i '/^user  nginx;/d' /etc/nginx/nginx.conf \
+ && sed -i 's,/run/nginx.pid,/tmp/nginx.pid,' /etc/nginx/nginx.conf \
+ && printf 'client_body_temp_path /tmp/client_temp;\nproxy_temp_path /tmp/proxy_temp;\nfastcgi_temp_path /tmp/fastcgi_temp;\nuwsgi_temp_path /tmp/uwsgi_temp;\nscgi_temp_path /tmp/scgi_temp;\n' > /etc/nginx/conf.d/00-unprivileged.conf \
+ && chown -R nginx:0 /etc/nginx/conf.d /var/cache/nginx \
+ && chmod -R g+w /etc/nginx/conf.d /var/cache/nginx
 USER nginx
 
 EXPOSE 8080
