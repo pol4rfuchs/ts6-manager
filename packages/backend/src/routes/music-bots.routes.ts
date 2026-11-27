@@ -14,8 +14,10 @@ const MUSIC_DIR = process.env.MUSIC_DIR || '/data/music';
 // error (400). Without the check parseInt() gives NaN, Prisma rejects the query and
 // the client gets a 500.
 function bodyId(value: unknown, field: string): number {
-  const id = typeof value === 'number' ? value : parseInt(String(value ?? ''), 10);
-  if (!Number.isInteger(id)) throw new AppError(400, `${field} must be an integer`);
+  // Strict: "12abc" and "1.5" are not ids (parseInt would cut them to 12 and 1).
+  const id = typeof value === 'number' ? value
+    : typeof value === 'string' && /^\d+$/.test(value.trim()) ? Number(value.trim()) : NaN;
+  if (!Number.isSafeInteger(id)) throw new AppError(400, `${field} must be an integer`);
   return id;
 }
 

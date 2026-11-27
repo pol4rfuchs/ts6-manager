@@ -59,6 +59,15 @@ describe('music bot routes: ids in the request body', () => {
     expect(bot.queue.add).toHaveBeenCalledTimes(2);
   });
 
+  it('a partly numeric or fractional id is a 400, not cut down to an integer', async () => {
+    const { app, findSong } = makeApp();
+    for (const songId of ['12abc', '1.5', 1.5, '', ' ', '-', '1e3']) {
+      expect((await post(app, '/api/music-bots/1/queue', { songId })).status).toBe(400);
+      expect((await post(app, '/api/music-bots/1/play', { songId })).status).toBe(400);
+    }
+    expect(findSong).not.toHaveBeenCalled();
+  });
+
   it('queue: an unknown song is still a 404', async () => {
     const { app } = makeApp(vi.fn().mockResolvedValue(null));
     expect((await post(app, '/api/music-bots/1/queue', { songId: 99 })).status).toBe(404);
